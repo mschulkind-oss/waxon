@@ -1,0 +1,61 @@
+---
+title: "waxon Demo"
+author: "waxon"
+theme: default
+aspect: "16:9"
+footer: "waxon — slides for the mind meld"
+---
+
+# waxon
+
+A slide deck toolkit built for the mind meld between human and agent.
+
+---
+
+# Features
+
+- Text-first `.slides` format
+- Live reload preview server
+- 6 built-in themes
+- Agent collaboration baked in
+- PDF export
+
+---
+
+# The Format
+
+```yaml
+---
+title: "My Talk"
+theme: terminal
+---
+```
+
+YAML frontmatter + Markdown body. That's it.
+
+---
+
+# Themes
+
+- **default** — clean dark theme
+- **light** — bright and professional
+- **corporate** — conservative business palette
+- **minimal** — typography-focused
+- **vibrant** — bold gradients
+- **terminal** — authentic TUI aesthetic
+
+---
+
+# Agent Collaboration
+
+```bash
+waxon agent-context deck.slides | claude "improve flow"
+```
+
+Comments, AI notes, and variants live in the file — not a database.
+
+---
+
+# Thank You
+
+`waxon` — wax on about what matters.

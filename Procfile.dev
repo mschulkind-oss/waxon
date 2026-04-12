@@ -1,0 +1,1 @@
+server: air -- serve example.slides --port ${SM_PORT:-8080} --no-open

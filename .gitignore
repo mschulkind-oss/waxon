@@ -1,0 +1,52 @@
+# YOLO Jail workspace state
+.yolo/
+
+# Build artifacts
+/waxon
+/dist/*.tar.gz
+/dist/*.zip
+/dist/waxon-*
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+go.work
+go.work.sum
+
+# npm distribution
+dist/npm/node_modules/
+dist/npm/*.tgz
+
+# Python distribution
+dist/pypi/dist/
+dist/pypi/build/
+dist/pypi/*.egg-info/
+__pycache__/
+*.pyc
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# swarf (managed separately)
+swarf/
+
+# goreleaser
+dist/goreleaser/
+
+# Dev workflow
+tmp/
+build-errors.log
+coverage.out
