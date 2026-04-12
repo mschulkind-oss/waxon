@@ -17,7 +17,8 @@ echo ""
 echo "Publishing waxon@0.0.1 to npm (placeholder)..."
 echo "You may need to run 'npm login' first."
 echo ""
-npm publish --access public
+# No --provenance flag locally — provenance only works in GitHub Actions
+npm publish --access public --no-provenance
 
 echo ""
 echo "=== npm done ==="
