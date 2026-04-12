@@ -3,6 +3,7 @@
 
 # Build artifacts
 /waxon
+*.pdf
 /dist/*.tar.gz
 /dist/*.zip
 /dist/waxon-*
@@ -21,13 +22,20 @@ go.work.sum
 # npm distribution
 dist/npm/node_modules/
 dist/npm/*.tgz
+dist/npm/README.md
+dist/npm/LICENSE
 
 # Python distribution
 dist/pypi/dist/
 dist/pypi/build/
-dist/pypi/*.egg-info/
+dist/pypi/src/*.egg-info/
+dist/pypi/README.md
+dist/pypi/LICENSE
 __pycache__/
 *.pyc
+
+# Scratch
+scratch/
 
 # IDE
 .idea/
