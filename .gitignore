@@ -3,6 +3,7 @@
 
 # Build artifacts
 /waxon
+/dist/waxon
 *.pdf
 
 # Go

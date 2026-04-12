@@ -228,16 +228,16 @@ func TestGetDeck(t *testing.T) {
 
 func TestGetPort(t *testing.T) {
 	// Default port
-	os.Unsetenv("SM_PORT")
+	os.Unsetenv("WK_PORT")
 	if p := getPort(); p != "8080" {
 		t.Errorf("default port = %q, want 8080", p)
 	}
 
-	// SM_PORT override
-	os.Setenv("SM_PORT", "3000")
-	defer os.Unsetenv("SM_PORT")
-	if p := getPort(); p != "3000" {
-		t.Errorf("SM_PORT = %q, want 3000", p)
+	// WK_PORT override
+	os.Setenv("WK_PORT", "4000")
+	defer os.Unsetenv("WK_PORT")
+	if p := getPort(); p != "4000" {
+		t.Errorf("WK_PORT = %q, want 4000", p)
 	}
 }
 

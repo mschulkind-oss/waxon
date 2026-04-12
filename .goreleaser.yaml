@@ -1,5 +1,6 @@
 version: 2
 project_name: waxon
+dist: dist/goreleaser
 
 before:
   hooks:

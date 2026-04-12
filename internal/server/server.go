@@ -64,7 +64,7 @@ func New(cfg Config) (*Server, error) {
 }
 
 func getPort() string {
-	if p := os.Getenv("SM_PORT"); p != "" {
+	if p := os.Getenv("WK_PORT"); p != "" {
 		return p
 	}
 	return "8080"

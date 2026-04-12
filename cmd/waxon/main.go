@@ -15,13 +15,12 @@ import (
 	"github.com/mschulkind-oss/waxon/internal/pdf"
 	"github.com/mschulkind-oss/waxon/internal/server"
 	"github.com/mschulkind-oss/waxon/internal/themes"
+	"github.com/mschulkind-oss/waxon/internal/version"
 	"github.com/spf13/cobra"
 
 	// Ensure themes init() registers CSS callback
 	_ "github.com/mschulkind-oss/waxon/internal/themes"
 )
-
-var version = "dev"
 
 // Shared color styles
 var (
@@ -59,7 +58,7 @@ collaborate on the same ` + bold.Sprint(".slides") + ` file.
 
 ` + dim.Sprint("Available themes:") + ` default, light, corporate, minimal, vibrant, terminal
 ` + dim.Sprint("Run") + ` ` + info.Sprint("waxon themes") + ` ` + dim.Sprint("to see them all."),
-		Version: version,
+		Version: version.String(),
 	}
 
 	cmd.SetVersionTemplate(accent.Sprint("waxon") + " {{.Version}}\n")
@@ -70,6 +69,7 @@ collaborate on the same ` + bold.Sprint(".slides") + ` file.
 	cmd.AddCommand(themesCmd())
 	cmd.AddCommand(commentCmd())
 	cmd.AddCommand(agentContextCmd())
+	cmd.AddCommand(serviceCmd())
 
 	return cmd
 }
@@ -132,7 +132,7 @@ Every save triggers an instant reload via WebSocket — no manual refresh needed
 		},
 	}
 
-	cmd.Flags().StringVar(&port, "port", "", "HTTP server port (default $SM_PORT or 8080)")
+	cmd.Flags().StringVar(&port, "port", "", "HTTP server port (default $WK_PORT or 8080)")
 	cmd.Flags().StringVar(&bind, "bind", "0.0.0.0", "Bind address")
 	cmd.Flags().StringVar(&theme, "theme", "", "Override the theme from frontmatter")
 	cmd.Flags().BoolVar(&noOpen, "no-open", false, "Don't auto-open browser")
