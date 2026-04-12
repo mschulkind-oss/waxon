@@ -4,9 +4,6 @@
 # Build artifacts
 /waxon
 *.pdf
-/dist/*.tar.gz
-/dist/*.zip
-/dist/waxon-*
 
 # Go
 *.exe

@@ -5,13 +5,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"html/template"
 	"github.com/mschulkind-oss/waxon/internal/format"
 	"github.com/yuin/goldmark"
 	highlighting "github.com/yuin/goldmark-highlighting/v2"
 	"github.com/yuin/goldmark/extension"
 	"github.com/yuin/goldmark/parser"
 	"github.com/yuin/goldmark/renderer/html"
+	"html/template"
 )
 
 // Options configures the renderer.
@@ -362,4 +362,3 @@ html, body {
 </script>
 </body>
 </html>`
-

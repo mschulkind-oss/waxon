@@ -21,8 +21,7 @@ lint:
 
 # Format code
 format:
-    gofmt -w .
-    goimports -w .
+    gofmt -w cmd/ internal/
 
 # Quality checks
 check: format lint test
@@ -39,6 +38,10 @@ cover:
 cover-report:
     go test ./... -coverprofile=coverage.out
     go tool cover -func=coverage.out
+
+# Set up git hooks
+setup:
+    git config core.hooksPath .githooks
 
 # Clean build artifacts
 clean:

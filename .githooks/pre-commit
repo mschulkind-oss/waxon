@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Format Go code and fail if there are changes
+echo "Running gofmt..."
+unformatted=$(gofmt -l cmd/ internal/ 2>/dev/null || true)
+if [ -n "$unformatted" ]; then
+    echo "The following files need formatting:"
+    echo "$unformatted"
+    echo ""
+    echo "Run: gofmt -w cmd/ internal/"
+    exit 1
+fi
+
+# Run go vet
+echo "Running go vet..."
+go vet ./...
+
+echo "Pre-commit checks passed."

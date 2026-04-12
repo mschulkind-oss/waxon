@@ -21,13 +21,13 @@ type Meta struct {
 
 // Slide represents a single slide in the deck.
 type Slide struct {
-	Index    int       `json:"index"`
-	Content  string    `json:"content"`
-	Notes    []string  `json:"notes,omitempty"`
-	AINotes  []string  `json:"ai_notes,omitempty"`
-	Comments []Comment `json:"comments,omitempty"`
-	Variants []Variant `json:"variants,omitempty"`
-	Pauses   int       `json:"pauses,omitempty"`
+	Index     int        `json:"index"`
+	Content   string     `json:"content"`
+	Notes     []string   `json:"notes,omitempty"`
+	AINotes   []string   `json:"ai_notes,omitempty"`
+	Comments  []Comment  `json:"comments,omitempty"`
+	Variants  []Variant  `json:"variants,omitempty"`
+	Pauses    int        `json:"pauses,omitempty"`
 	SlideOpts *SlideOpts `json:"slide_opts,omitempty"`
 }
 
