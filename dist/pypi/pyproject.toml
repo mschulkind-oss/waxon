@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68.0", "setuptools-scm>=8.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "waxon"
+dynamic = ["version"]
+description = "A slide deck toolkit built for the mind meld between human and agent"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.10"
+authors = [
+    { name = "Matt Schulkind" },
+]
+keywords = ["slides", "presentation", "markdown", "cli", "agent"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Multimedia :: Graphics :: Presentation",
+]
+
+[project.urls]
+Homepage = "https://github.com/mschulkind-oss/waxon"
+Repository = "https://github.com/mschulkind-oss/waxon"
+Issues = "https://github.com/mschulkind-oss/waxon/issues"
+
+[project.scripts]
+waxon = "waxon.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools_scm]
+root = "../.."

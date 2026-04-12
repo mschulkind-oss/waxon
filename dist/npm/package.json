@@ -1,0 +1,47 @@
+{
+  "name": "waxon",
+  "version": "0.0.0",
+  "description": "A slide deck toolkit built for the mind meld between human and agent",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mschulkind-oss/waxon.git"
+  },
+  "homepage": "https://github.com/mschulkind-oss/waxon",
+  "keywords": [
+    "slides",
+    "presentation",
+    "markdown",
+    "cli",
+    "agent",
+    "terminal"
+  ],
+  "bin": {
+    "waxon": "bin/waxon"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js"
+  },
+  "files": [
+    "bin/",
+    "scripts/",
+    "README.md",
+    "LICENSE"
+  ],
+  "os": [
+    "darwin",
+    "linux",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "publishConfig": {
+    "provenance": true,
+    "access": "public"
+  }
+}

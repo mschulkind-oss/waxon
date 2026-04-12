@@ -1,0 +1,22 @@
+#!/usr/bin/env node
+
+// Wrapper that launches the waxon Go binary.
+// The actual binary is downloaded during `npm install` (postinstall).
+
+const { execFileSync } = require("child_process");
+const path = require("path");
+const os = require("os");
+
+const binName = os.platform() === "win32" ? "waxon.exe" : "waxon";
+const binPath = path.join(__dirname, binName);
+
+try {
+  execFileSync(binPath, process.argv.slice(2), { stdio: "inherit" });
+} catch (err) {
+  if (err.status != null) {
+    process.exit(err.status);
+  }
+  console.error(`Failed to run waxon: ${err.message}`);
+  console.error("Try reinstalling: npm install -g waxon");
+  process.exit(1);
+}
