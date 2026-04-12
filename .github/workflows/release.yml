@@ -32,11 +32,9 @@ jobs:
   publish-npm:
     needs: goreleaser
     runs-on: ubuntu-latest
-    # npm trusted publishing — configure at npmjs.com/package/<name>/access
-    # No NPM_TOKEN needed; OIDC handles auth
     permissions:
       contents: read
-      id-token: write
+      id-token: write  # Required for --provenance attestation
     steps:
       - uses: actions/checkout@v4
 
@@ -61,6 +59,8 @@ jobs:
           cd dist/npm
           mkdir -p bin
           npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-pypi:
     needs: goreleaser
