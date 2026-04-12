@@ -32,9 +32,11 @@ jobs:
   publish-npm:
     needs: goreleaser
     runs-on: ubuntu-latest
+    # npm trusted publishing — configure at npmjs.com/package/waxon/access
+    # No NPM_TOKEN needed; OIDC handles auth via trusted publisher
     permissions:
       contents: read
-      id-token: write  # Required for --provenance attestation
+      id-token: write  # Required for OIDC trusted publishing
     steps:
       - uses: actions/checkout@v4
 
@@ -42,6 +44,9 @@ jobs:
         with:
           node-version: 22
           registry-url: "https://registry.npmjs.org"
+
+      - name: Ensure npm >= 11.5.1 for trusted publishing
+        run: npm install -g npm@latest
 
       - name: Set version in package.json
         run: |
@@ -59,8 +64,6 @@ jobs:
           cd dist/npm
           mkdir -p bin
           npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
   publish-pypi:
     needs: goreleaser
