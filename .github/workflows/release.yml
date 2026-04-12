@@ -28,6 +28,7 @@ jobs:
           args: release --clean
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
 
   publish-npm:
     needs: goreleaser
@@ -42,11 +43,15 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24
           registry-url: "https://registry.npmjs.org"
 
       - name: Ensure npm >= 11.5.1 for trusted publishing
-        run: npm install -g npm@latest
+        run: |
+          # Node 24 ships with npm 11.x. Verify it meets the OIDC requirement.
+          npm --version
+          npx --yes semver -r ">=11.5.1" "$(npm --version)" || \
+            npm install -g --force npm@11.5.1
 
       - name: Set version in package.json
         run: |
@@ -96,15 +101,3 @@ jobs:
           cd dist/pypi
           uv publish dist/* --check-url https://pypi.org/simple/
 
-  update-homebrew:
-    needs: goreleaser
-    runs-on: ubuntu-latest
-    steps:
-      - name: Update Homebrew tap
-        uses: dawidd6/action-homebrew-bump-formula@v4
-        with:
-          # Token provided when tap repo is set up
-          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
-          tap: mschulkind-oss/tap
-          formula: waxon
-          tag: ${{ github.ref_name }}
