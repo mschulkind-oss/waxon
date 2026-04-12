@@ -347,3 +347,88 @@ func TestCommentCmdNoArgs(t *testing.T) {
 		t.Error("expected error for missing file arg")
 	}
 }
+
+func TestCommentCmdAdd(t *testing.T) {
+	// Write a slides file we can modify
+	dir := t.TempDir()
+	path := filepath.Join(dir, "test.slides")
+	if err := os.WriteFile(path, []byte(testSlides), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := executeCmd("comment", path, "--add", "great slide", "--slide", "1", "--author", "bob")
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "<!-- comment(@bob): great slide -->") {
+		t.Errorf("comment not added to file, content:\n%s", content)
+	}
+}
+
+func TestCommentCmdAddBadSlide(t *testing.T) {
+	path := writeTestSlides(t)
+
+	_, err := executeCmd("comment", path, "--add", "test", "--slide", "99", "--author", "bob")
+	if err == nil {
+		t.Error("expected error for out-of-range slide")
+	}
+}
+
+func TestCommentCmdAddNoSlide(t *testing.T) {
+	path := writeTestSlides(t)
+
+	_, err := executeCmd("comment", path, "--add", "test", "--author", "bob")
+	if err == nil {
+		t.Error("expected error when --slide not set for --add")
+	}
+}
+
+// Integration test: full roundtrip new -> parse -> agent-context
+func TestRoundtripNewToAgentContext(t *testing.T) {
+	dir := t.TempDir()
+	origDir, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origDir)
+
+	// Create a new deck
+	_, err := executeCmd("new", "roundtrip", "--theme", "terminal")
+	if err != nil {
+		t.Fatalf("new: %v", err)
+	}
+
+	// Read it back via agent-context
+	path := filepath.Join(dir, "roundtrip.slides")
+	out, err := executeCmd("agent-context", path)
+	if err != nil {
+		t.Fatalf("agent-context: %v", err)
+	}
+
+	var result struct {
+		File string `json:"file"`
+		Deck struct {
+			Meta struct {
+				Title string `json:"title"`
+				Theme string `json:"theme"`
+			} `json:"meta"`
+			Slides []any `json:"slides"`
+		} `json:"deck"`
+	}
+	if err := json.Unmarshal([]byte(out), &result); err != nil {
+		t.Fatalf("JSON decode: %v", err)
+	}
+	if result.Deck.Meta.Title != "roundtrip" {
+		t.Errorf("title = %q", result.Deck.Meta.Title)
+	}
+	if result.Deck.Meta.Theme != "terminal" {
+		t.Errorf("theme = %q", result.Deck.Meta.Theme)
+	}
+	if len(result.Deck.Slides) < 2 {
+		t.Errorf("expected multiple slides, got %d", len(result.Deck.Slides))
+	}
+}
