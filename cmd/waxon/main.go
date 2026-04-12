@@ -345,7 +345,9 @@ Or override at runtime:
 			for _, t := range all {
 				fmt.Fprintf(w, "%s\t%s\n", accent.Sprint(t.Name), t.Description)
 			}
-			w.Flush()
+			if err := w.Flush(); err != nil {
+				return err
+			}
 
 			fmt.Fprintf(out, "\n%s Use %s in frontmatter, or %s at runtime.\n",
 				dim.Sprint("Tip:"),

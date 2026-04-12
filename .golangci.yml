@@ -1,0 +1,20 @@
+version: "2"
+
+linters:
+  default: standard
+  exclusions:
+    rules:
+      # Test files: defer Close() and env helpers are noise
+      - path: _test\.go
+        linters:
+          - errcheck
+      # Allow unchecked Close() and Shutdown() in production code — these
+      # appear inside defer or shutdown paths where there's nothing useful
+      # to do with the error.
+      - linters:
+          - errcheck
+        text: "Error return value of `[^`]*\\.(Close|Shutdown)` is not checked"
+      # Allow unchecked fmt.Fprint* — they only fail on a broken writer.
+      - linters:
+          - errcheck
+        text: "Error return value of `fmt\\.Fprint"

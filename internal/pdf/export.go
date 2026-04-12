@@ -57,7 +57,10 @@ func Export(ctx context.Context, deck *format.Deck, opts Options) error {
 	})
 
 	srv := &http.Server{Handler: mux}
-	go srv.Serve(listener)
+	go func() {
+		// http.ErrServerClosed is the expected outcome when defer srv.Close() runs.
+		_ = srv.Serve(listener)
+	}()
 	defer srv.Close()
 
 	addr := fmt.Sprintf("http://%s/", listener.Addr().String())
