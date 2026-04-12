@@ -297,12 +297,45 @@ func TestCommentCmdNoFile(t *testing.T) {
 	}
 }
 
-func TestExportCmdNotImplemented(t *testing.T) {
-	path := writeTestSlides(t)
+func TestExportCmd(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping PDF export test in short mode")
+	}
 
-	_, err := executeCmd("export", path)
-	if err == nil {
-		t.Error("expected error for unimplemented export")
+	path := writeTestSlides(t)
+	dir := t.TempDir()
+	output := filepath.Join(dir, "test.pdf")
+
+	out, err := executeCmd("export", path, "-o", output)
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if !strings.Contains(out, "Wrote") {
+		t.Errorf("output = %q", out)
+	}
+
+	if _, err := os.Stat(output); err != nil {
+		t.Error("PDF file not created")
+	}
+}
+
+func TestExportCmdDefaultOutput(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping PDF export test in short mode")
+	}
+
+	path := writeTestSlides(t)
+	dir := filepath.Dir(path)
+	origDir, _ := os.Getwd()
+	os.Chdir(dir)
+	defer os.Chdir(origDir)
+
+	out, err := executeCmd("export", path)
+	if err != nil {
+		t.Fatalf("export: %v", err)
+	}
+	if !strings.Contains(out, "test.pdf") {
+		t.Errorf("should default to test.pdf, got: %s", out)
 	}
 }
 

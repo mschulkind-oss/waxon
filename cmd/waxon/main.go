@@ -11,6 +11,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/mschulkind-oss/waxon/internal/format"
+	"github.com/mschulkind-oss/waxon/internal/pdf"
 	"github.com/mschulkind-oss/waxon/internal/server"
 	"github.com/mschulkind-oss/waxon/internal/themes"
 	"github.com/spf13/cobra"
@@ -100,11 +101,40 @@ func exportCmd() *cobra.Command {
 		Short: "Export to PDF",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_ = output
-			_ = theme
-			_ = variant
-			_ = pages
-			return fmt.Errorf("PDF export not yet implemented")
+			data, err := os.ReadFile(args[0])
+			if err != nil {
+				return err
+			}
+
+			deck, err := format.Parse(string(data))
+			if err != nil {
+				return err
+			}
+
+			// Default output name
+			if output == "" {
+				base := strings.TrimSuffix(filepath.Base(args[0]), filepath.Ext(args[0]))
+				output = base + ".pdf"
+			}
+
+			_ = variant // TODO: variant selection
+			_ = pages   // TODO: page range filtering
+
+			ctx, cancel := signal.NotifyContext(context.Background(), os.Interrupt)
+			defer cancel()
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Exporting to %s...\n", output)
+			if err := pdf.Export(ctx, deck, pdf.Options{
+				Output:        output,
+				ThemeOverride: theme,
+				Variant:       variant,
+				Pages:         pages,
+			}); err != nil {
+				return err
+			}
+
+			fmt.Fprintf(cmd.OutOrStdout(), "Wrote %s\n", output)
+			return nil
 		},
 	}
 
