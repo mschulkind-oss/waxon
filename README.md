@@ -16,7 +16,7 @@ Single binary. No runtime dependencies. Install and go.
 
 ```bash
 # npm/npx — run without installing
-npx waxon serve deck.slides
+npx @mschulkind/waxon serve deck.slides
 
 # Python/uvx — run without installing
 uvx waxon serve deck.slides
