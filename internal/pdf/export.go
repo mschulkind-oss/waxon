@@ -36,6 +36,7 @@ func Export(ctx context.Context, deck *format.Deck, opts Options) error {
 	html, err := render.RenderHTML(deck, render.Options{
 		ThemeOverride: theme,
 		Standalone:    true,
+		Print:         true,
 	})
 	if err != nil {
 		return fmt.Errorf("render HTML: %w", err)

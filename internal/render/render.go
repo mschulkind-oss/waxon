@@ -31,9 +31,18 @@ type Options struct {
 	// in single-file mode.
 	Decks []DeckSummary
 
-	// Standalone disables websocket reload + comment posting (used for PDF
-	// export so the rendered HTML doesn't try to phone home).
+	// Standalone disables websocket reload + comment posting so the rendered
+	// HTML doesn't try to phone home. Used by both PDF export and static
+	// HTML export.
 	Standalone bool
+
+	// Print switches to the print-friendly layout (all slides pre-rendered
+	// as stacked divs, one-per-page). Used by PDF export.
+	Print bool
+
+	// IncludeNotes, when true in an export, bundles speaker notes into the
+	// rendered output so the viewer can open them alongside each slide.
+	IncludeNotes bool
 }
 
 // DeckSummary is a lightweight reference to a deck on the same server.
@@ -66,12 +75,13 @@ func init() {
 	)
 }
 
-// RenderHTML renders a deck to a complete HTML page. When opts.Standalone
-// is true, the renderer emits a print-friendly layout with all slides
-// pre-rendered as static divs (used by the PDF exporter); otherwise it
-// emits the interactive multi-deck UI.
+// RenderHTML renders a deck to a complete HTML page. When opts.Print is
+// true, the renderer emits a PDF-friendly layout with all slides stacked
+// vertically (used by the PDF exporter); otherwise it emits the
+// interactive multi-deck UI. Standalone further disables server features
+// (websocket reload, comment posting) so the output works offline.
 func RenderHTML(deck *format.Deck, opts Options) (string, error) {
-	if opts.Standalone {
+	if opts.Print {
 		return renderStandalone(deck, opts)
 	}
 

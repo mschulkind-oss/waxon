@@ -157,22 +157,27 @@ func exportCmd() *cobra.Command {
 		theme   string
 		variant string
 		pages   string
+		format_ string
+		notes   bool
 	)
 
 	cmd := &cobra.Command{
 		Use:   "export <file.slides>",
-		Short: "Export to PDF",
-		Long: bold.Sprint("Export slides to PDF using headless Chromium.") + `
+		Short: "Export to PDF or static HTML",
+		Long: bold.Sprint("Export slides to PDF or a self-contained HTML file.") + `
 
-Renders your deck to pixel-perfect PDF, one slide per page, preserving
-theme styling, syntax highlighting, and layout.
+PDF (default): pixel-perfect, one slide per page, for handouts or sharing.
+HTML: the full interactive viewer bundled into a single offline-ready file —
+keyboard navigation, theme picker, zoom, and (with --notes) a speaker notes
+panel. Works without a server.
 
-` + dim.Sprint("Output defaults to the input filename with a .pdf extension.") + `
+` + dim.Sprint("Output defaults to the input filename with the format's extension.") + `
 
 ` + dim.Sprint("Examples:") + `
-  ` + info.Sprint("waxon export deck.slides") + `                    → deck.pdf
-  ` + info.Sprint("waxon export deck.slides -o talk.pdf") + `        → talk.pdf
-  ` + info.Sprint("waxon export deck.slides --theme minimal") + `    Override theme
+  ` + info.Sprint("waxon export deck.slides") + `                       → deck.pdf
+  ` + info.Sprint("waxon export deck.slides --format html") + `         → deck.html
+  ` + info.Sprint("waxon export deck.slides --format html --notes") + ` Bundle speaker notes
+  ` + info.Sprint("waxon export deck.slides --theme minimal") + `       Override theme
 
 ` + dim.Sprint("For agents:") + `
   Export after editing to verify visual output. Combine with
@@ -180,6 +185,7 @@ theme styling, syntax highlighting, and layout.
   then export to confirm the result.`,
 		Example: `  waxon export deck.slides
   waxon export deck.slides -o presentation.pdf
+  waxon export deck.slides --format html -o deck.html
   waxon export deck.slides --theme corporate -o quarterly.pdf`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -193,10 +199,22 @@ theme styling, syntax highlighting, and layout.
 				return err
 			}
 
-			// Default output name
+			format_ = strings.ToLower(strings.TrimSpace(format_))
+			if format_ == "" {
+				// Infer from explicit output extension, else default to pdf.
+				if strings.HasSuffix(strings.ToLower(output), ".html") {
+					format_ = "html"
+				} else {
+					format_ = "pdf"
+				}
+			}
+			if format_ != "pdf" && format_ != "html" {
+				return fmt.Errorf("unknown format %q (want pdf or html)", format_)
+			}
+
 			if output == "" {
 				base := strings.TrimSuffix(filepath.Base(args[0]), filepath.Ext(args[0]))
-				output = base + ".pdf"
+				output = base + "." + format_
 			}
 
 			_ = variant // TODO: variant selection
@@ -206,13 +224,24 @@ theme styling, syntax highlighting, and layout.
 			defer cancel()
 
 			fmt.Fprintf(cmd.OutOrStdout(), "%s Exporting to %s...\n", info.Sprint("→"), bold.Sprint(output))
-			if err := pdf.Export(ctx, deck, pdf.Options{
-				Output:        output,
-				ThemeOverride: theme,
-				Variant:       variant,
-				Pages:         pages,
-			}); err != nil {
-				return err
+
+			if format_ == "html" {
+				if err := pdf.ExportHTML(deck, pdf.HTMLOptions{
+					Output:        output,
+					ThemeOverride: theme,
+					IncludeNotes:  notes,
+				}); err != nil {
+					return err
+				}
+			} else {
+				if err := pdf.Export(ctx, deck, pdf.Options{
+					Output:        output,
+					ThemeOverride: theme,
+					Variant:       variant,
+					Pages:         pages,
+				}); err != nil {
+					return err
+				}
 			}
 
 			fmt.Fprintf(cmd.OutOrStdout(), "%s Wrote %s\n", success.Sprint("✓"), bold.Sprint(output))
@@ -220,10 +249,12 @@ theme styling, syntax highlighting, and layout.
 		},
 	}
 
-	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default <name>.pdf)")
+	cmd.Flags().StringVarP(&output, "output", "o", "", "Output file path (default <name>.<format>)")
 	cmd.Flags().StringVar(&theme, "theme", "", "Override the theme")
 	cmd.Flags().StringVar(&variant, "variant", "", "Choose specific variants by name")
-	cmd.Flags().StringVar(&pages, "pages", "", "Page range (e.g., 1-5, 3,7,9)")
+	cmd.Flags().StringVar(&pages, "pages", "", "Page range (e.g., 1-5, 3,7,9) — pdf only")
+	cmd.Flags().StringVar(&format_, "format", "", "Output format: pdf (default) or html")
+	cmd.Flags().BoolVar(&notes, "notes", false, "Bundle speaker notes panel (html only)")
 
 	return cmd
 }

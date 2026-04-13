@@ -150,15 +150,14 @@ func TestPaperSizeEmpty(t *testing.T) {
 	}
 }
 
-func TestStandaloneRender(t *testing.T) {
-	// The exporter no longer post-processes the HTML — it asks the renderer
-	// for a standalone (print-friendly) page directly. This test guards
-	// that contract: the standalone HTML must contain the .deck wrapper
-	// chromedp waits on, must page-break each slide, and must NOT include
-	// the live-reload websocket script.
-	html, err := render.RenderHTML(testDeck(), render.Options{Standalone: true})
+func TestPrintRender(t *testing.T) {
+	// The PDF exporter asks the renderer for a print-friendly page directly.
+	// This test guards that contract: the print HTML must contain the .deck
+	// wrapper chromedp waits on, must page-break each slide, and must NOT
+	// include the live-reload websocket script.
+	html, err := render.RenderHTML(testDeck(), render.Options{Standalone: true, Print: true})
 	if err != nil {
-		t.Fatalf("RenderHTML standalone: %v", err)
+		t.Fatalf("RenderHTML print: %v", err)
 	}
 	if !strings.Contains(html, `class="deck"`) {
 		t.Error("missing .deck wrapper")
@@ -167,7 +166,26 @@ func TestStandaloneRender(t *testing.T) {
 		t.Error("missing page-break-after")
 	}
 	if strings.Contains(html, "new WebSocket") {
-		t.Error("standalone page must not open a websocket")
+		t.Error("print page must not open a websocket")
+	}
+}
+
+func TestStandaloneHTMLRender(t *testing.T) {
+	// Static HTML export uses the interactive viewer with Standalone=true.
+	// It must still be self-contained (no websocket, no comment-post calls)
+	// so it works when opened from file:// or a bare webserver.
+	html, err := render.RenderHTML(testDeck(), render.Options{Standalone: true})
+	if err != nil {
+		t.Fatalf("RenderHTML standalone: %v", err)
+	}
+	// Interactive viewer uses #app / .slide, not the .deck print wrapper.
+	if !strings.Contains(html, `id="app"`) {
+		t.Error("missing interactive viewer")
+	}
+	// The WS reconnection loop is gated on !state.standalone — confirm the
+	// state flag is set so the browser never tries to connect.
+	if !strings.Contains(html, `"standalone":true`) {
+		t.Error("standalone HTML must mark state.standalone=true")
 	}
 }
 
