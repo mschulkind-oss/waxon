@@ -1111,6 +1111,104 @@ html, body {
   letter-spacing: 0.03em;
 }
 
+/* ---------- Speaker notes panel ---------- */
+.notes-current {
+  padding: 14px 16px;
+  border: 1px solid var(--chrome-border);
+  border-radius: 6px;
+  margin-bottom: 12px;
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+.notes-current h3 {
+  font-size: var(--chrome-font);
+  font-weight: 600;
+  margin: 0 0 10px;
+  color: var(--accent);
+}
+.notes-current .note {
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  background: var(--chrome-bg);
+  border-left: 2px solid var(--accent);
+  border-radius: 3px;
+  font-size: var(--chrome-font);
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+.notes-current .note.ai {
+  border-left-color: color-mix(in srgb, var(--accent) 40%, var(--chrome-fg) 60%);
+  opacity: 0.88;
+}
+.notes-current .note .tag {
+  display: inline-block;
+  padding: 1px 5px;
+  margin-right: 4px;
+  font-size: 9px;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--accent) 25%, transparent);
+  color: var(--accent);
+  border-radius: 3px;
+  vertical-align: middle;
+}
+.notes-next {
+  padding: 10px 14px;
+  border: 1px dashed var(--chrome-border);
+  border-radius: 6px;
+  margin-bottom: 14px;
+  opacity: 0.75;
+}
+.notes-next h4 {
+  font-size: var(--chrome-font-sm);
+  font-weight: 500;
+  margin: 0;
+  color: var(--chrome-fg);
+}
+.notes-outline-heading {
+  font-size: var(--chrome-font-sm);
+  font-weight: 600;
+  margin: 0 0 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  opacity: 0.7;
+}
+.notes-outline-item {
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 4px;
+  font-size: var(--chrome-font-sm);
+  cursor: pointer;
+  align-items: center;
+}
+.notes-outline-item:hover { background: var(--chrome-hover); }
+.notes-outline-item.active {
+  background: var(--chrome-active);
+  border-left: 2px solid var(--accent);
+  padding-left: 8px;
+}
+.notes-outline-item .n {
+  font-family: var(--font-mono);
+  opacity: 0.55;
+  min-width: 22px;
+  text-align: right;
+}
+.notes-outline-item .title {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.notes-outline-item .count {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  padding: 1px 5px;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent);
+  border-radius: 8px;
+}
+
 .comment-form {
   padding: 12px 16px;
   border-top: 1px solid var(--chrome-border);
@@ -1302,6 +1400,7 @@ html, body {
       <button type="button" data-action="comments" aria-label="Toggle comments panel (c)" title="Comments — c"><kbd>c</kbd> comments</button>
       <button type="button" data-action="decks" aria-label="Toggle decks panel (d)" title="Decks — d"><kbd>d</kbd> decks</button>
       <button type="button" data-action="themes" aria-label="Toggle themes panel (t)" title="Themes — t"><kbd>t</kbd> themes</button>
+      <button type="button" data-action="notes" aria-label="Toggle speaker notes (N)" title="Speaker notes — Shift+N"><kbd>N</kbd> notes</button>
     </div>
     <div class="divider"></div>
     <div class="group">
@@ -1360,6 +1459,14 @@ html, body {
   <div class="panel-body" id="themes-body"></div>
 </aside>
 
+<aside class="panel" id="panel-notes" data-panel="notes" role="dialog" aria-modal="false" aria-labelledby="notes-title" hidden>
+  <div class="panel-header">
+    <span id="notes-title">Speaker notes</span>
+    <button class="close" type="button" aria-label="Close notes panel">×</button>
+  </div>
+  <div class="panel-body" id="notes-body"></div>
+</aside>
+
 <div class="help-overlay" id="help-overlay" role="dialog" aria-modal="true" aria-labelledby="help-title">
   <div class="help-card" tabindex="-1">
     <h2 id="help-title">Keyboard shortcuts</h2>
@@ -1381,6 +1488,7 @@ html, body {
       <tr><td><kbd>c</kbd></td><td>Toggle comments panel</td></tr>
       <tr><td><kbd>d</kbd></td><td>Toggle decks panel</td></tr>
       <tr><td><kbd>t</kbd></td><td>Toggle themes panel</td></tr>
+      <tr><td><kbd>Shift</kbd>+<kbd>N</kbd></td><td>Toggle speaker notes panel</td></tr>
       <tr><td><kbd>?</kbd></td><td>Toggle this help</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Close help / panel / exit fullscreen</td></tr>
     </table>
@@ -1570,6 +1678,7 @@ html, body {
     updateFabActive();
     if (openPanel === 'variants') renderVariantsPanel();
     if (openPanel === 'comments') renderCommentsPanel();
+    if (openPanel === 'notes') renderNotesPanel();
     refreshCommentTargets();
 
     // Prefer the named slide ID when one is set, so named anchors like
@@ -1723,6 +1832,7 @@ html, body {
       if (name === 'comments') renderCommentsPanel();
       if (name === 'decks') renderDecksPanel();
       if (name === 'themes') renderThemesPanel();
+      if (name === 'notes') renderNotesPanel();
       // Move focus into the panel header for screen reader users.
       // preventScroll: hidden panels extend the app's scrollWidth and a
       // plain focus() scrolls the app 420px left, exposing the hidden ones.
@@ -1810,6 +1920,71 @@ html, body {
     d.innerHTML = s.html;
     var h = d.querySelector('h1, h2, h3');
     return h ? h.textContent.trim() : '';
+  }
+
+  function renderNotesPanel() {
+    // Show notes for the active slide in a "now speaking" block, followed
+    // by a condensed outline of the whole deck so the presenter can
+    // preview what's coming.
+    var body = $('notes-body');
+    var s = getSlide(current);
+    var html = '';
+    var notes = (s.notes || []).slice();
+    var aiNotes = (s.aiNotes || []).slice();
+    // If a variant is active, prefer its notes.
+    var activeV = activeVariant[current] || '';
+    if (activeV) {
+      for (var i = 0; i < s.variants.length; i++) {
+        if (s.variants[i].name === activeV) {
+          notes = (s.variants[i].notes || []).slice();
+          aiNotes = (s.variants[i].aiNotes || []).slice();
+          break;
+        }
+      }
+    }
+    var t = slideTitle(s);
+    html += '<div class="notes-current">';
+    html += '<h3>Now speaking — slide ' + (current + 1) + (t ? ' · ' + escapeHTML(t) : '') + '</h3>';
+    if (notes.length === 0 && aiNotes.length === 0) {
+      html += '<p class="empty">No notes on this slide.</p>';
+    } else {
+      notes.forEach(function(n) {
+        html += '<div class="note">' + escapeHTML(n) + '</div>';
+      });
+      aiNotes.forEach(function(n) {
+        html += '<div class="note ai"><span class="tag">ai</span> ' + escapeHTML(n) + '</div>';
+      });
+    }
+    html += '</div>';
+    // Up next: slide + 1 title only, for context.
+    if (current + 1 < total) {
+      var nx = getSlide(current + 1);
+      var nt = slideTitle(nx);
+      html += '<div class="notes-next">';
+      html += '<h4>Up next — slide ' + (current + 2) + (nt ? ' · ' + escapeHTML(nt) : '') + '</h4>';
+      html += '</div>';
+    }
+    // Full deck outline with inline notes count so presenters can jump.
+    html += '<h4 class="notes-outline-heading">Deck outline</h4>';
+    html += '<div class="notes-outline">';
+    deck.forEach(function(sl) {
+      var title = slideTitle(sl) || '(untitled)';
+      var count = (sl.notes || []).length + (sl.aiNotes || []).length;
+      var active = sl.index === current ? ' active' : '';
+      html += '<div class="notes-outline-item clickable' + active + '" data-slide="' + (sl.index + 1) + '">' +
+        '<span class="n">' + (sl.index + 1) + '</span>' +
+        '<span class="title">' + escapeHTML(title) + '</span>' +
+        (count > 0 ? '<span class="count">' + count + '</span>' : '') +
+        '</div>';
+    });
+    html += '</div>';
+    body.innerHTML = html;
+    body.querySelectorAll('.notes-outline-item.clickable').forEach(function(el) {
+      el.addEventListener('click', function() {
+        var slide = parseInt(el.getAttribute('data-slide'), 10) - 1;
+        if (slide >= 0 && slide < total) go(slide);
+      });
+    });
   }
 
   function renderCommentsPanel() {
@@ -2143,6 +2318,7 @@ html, body {
       case 'd': e.preventDefault(); togglePanel('decks'); return;
       case 't': e.preventDefault(); togglePanel('themes'); return;
       case 'T': e.preventDefault(); cycleTheme(1); return;
+      case 'N': e.preventDefault(); togglePanel('notes'); return;
       case 'x': e.preventDefault(); compareMode = !compareMode; render(); return;
       case '[': e.preventDefault(); cycleVariant(-1); return;
       case ']': e.preventDefault(); cycleVariant(1); return;
