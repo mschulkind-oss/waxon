@@ -119,6 +119,7 @@ func RenderHTML(deck *format.Deck, opts Options) (string, error) {
 		Theme:           theme,
 		Aspect:          deck.Meta.Aspect,
 		Footer:          deck.Meta.Footer,
+		Transition:      deck.Meta.Transition,
 		TerminalVariant: deck.Meta.TerminalVariant,
 		TerminalEffects: deck.Meta.TerminalEffects,
 		DeckJSON:        template.JS(jsDeckJSON),
@@ -229,6 +230,7 @@ type templateData struct {
 	Theme           string
 	Aspect          string
 	Footer          string
+	Transition      string
 	TerminalVariant string
 	TerminalEffects bool
 	DeckJSON        template.JS
@@ -278,6 +280,7 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 	data := struct {
 		Title           string
 		Theme           string
+		Transition      string
 		TerminalVariant string
 		TerminalEffects bool
 		Footer          string
@@ -285,6 +288,7 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 	}{
 		Title:           deck.Meta.Title,
 		Theme:           theme,
+		Transition:      deck.Meta.Transition,
 		TerminalVariant: deck.Meta.TerminalVariant,
 		TerminalEffects: deck.Meta.TerminalEffects,
 		Footer:          deck.Meta.Footer,
@@ -597,6 +601,241 @@ html, body {
   padding: 0.5em 0.8em;
   font-family: var(--font-mono);
   font-size: 0.85em;
+}
+
+/* ---------- Cards ----------
+ * :::card / :::card <color> / :::card-left. A bordered container for a
+ * title + metric + subtitle. Left-border variant drops the full border
+ * for a blockquote-like affordance. */
+.slide .waxon-card {
+  border: 1px solid var(--foreground2, currentColor);
+  border-radius: 6px;
+  padding: 0.8em 1.2em;
+  margin: 0.8em 0;
+  color: var(--slide-fg);
+}
+.slide .waxon-card.red    { border-color: var(--color-red,    #ef4444); }
+.slide .waxon-card.green  { border-color: var(--color-green,  #22c55e); }
+.slide .waxon-card.yellow { border-color: var(--color-yellow, #eab308); }
+.slide .waxon-card.blue   { border-color: var(--color-blue,   #3b82f6); }
+.slide .waxon-card.aqua   { border-color: var(--color-aqua,   #06b6d4); }
+.slide .waxon-card > :first-child { margin-top: 0; }
+.slide .waxon-card > :last-child  { margin-bottom: 0; }
+.slide .waxon-card-left {
+  border: none;
+  border-left: 4px solid var(--foreground2, currentColor);
+  border-radius: 0;
+  padding-left: 1em;
+}
+.slide .waxon-card-left.red    { border-left-color: var(--color-red,    #ef4444); }
+.slide .waxon-card-left.green  { border-left-color: var(--color-green,  #22c55e); }
+.slide .waxon-card-left.yellow { border-left-color: var(--color-yellow, #eab308); }
+.slide .waxon-card-left.blue   { border-left-color: var(--color-blue,   #3b82f6); }
+.slide .waxon-card-left.aqua   { border-left-color: var(--color-aqua,   #06b6d4); }
+
+/* ---------- Grid layout ----------
+ * :::grid 3 / :::grid 2x2. Uses inline grid-template-columns from the
+ * parser so the number of columns isn't baked into CSS. */
+.slide .waxon-grid {
+  display: grid;
+  gap: 1em;
+  margin: 1em 0;
+}
+.slide .waxon-grid-cell {
+  padding: 0.8em 1em;
+  border: 1px solid var(--foreground2, currentColor);
+  border-radius: 6px;
+}
+.slide .waxon-grid-cell.red    { border-color: var(--color-red,    #ef4444); }
+.slide .waxon-grid-cell.green  { border-color: var(--color-green,  #22c55e); }
+.slide .waxon-grid-cell.yellow { border-color: var(--color-yellow, #eab308); }
+.slide .waxon-grid-cell.blue   { border-color: var(--color-blue,   #3b82f6); }
+.slide .waxon-grid-cell.aqua   { border-color: var(--color-aqua,   #06b6d4); }
+.slide .waxon-grid-cell > :first-child { margin-top: 0; }
+.slide .waxon-grid-cell > :last-child  { margin-bottom: 0; }
+
+/* ---------- Flow diagrams ----------
+ * :::flow horizontal / :::flow vertical. Linear chain of boxes with
+ * arrow glyphs between them. Branching and labeled arrows are not yet
+ * supported — authors with those needs still reach for raw HTML. */
+.slide .waxon-flow {
+  display: flex;
+  gap: 0.6em;
+  align-items: center;
+  margin: 1em 0;
+  flex-wrap: wrap;
+}
+.slide .waxon-flow-vertical {
+  flex-direction: column;
+  align-items: stretch;
+}
+.slide .waxon-flow-node {
+  padding: 0.6em 1em;
+  border: 2px solid currentColor;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+.slide .waxon-flow-node.red    { border-color: var(--color-red,    #ef4444); color: var(--color-red,    #ef4444); }
+.slide .waxon-flow-node.green  { border-color: var(--color-green,  #22c55e); color: var(--color-green,  #22c55e); }
+.slide .waxon-flow-node.yellow { border-color: var(--color-yellow, #eab308); color: var(--color-yellow, #eab308); }
+.slide .waxon-flow-node.blue   { border-color: var(--color-blue,   #3b82f6); color: var(--color-blue,   #3b82f6); }
+.slide .waxon-flow-node.aqua   { border-color: var(--color-aqua,   #06b6d4); color: var(--color-aqua,   #06b6d4); }
+.slide .waxon-flow-arrow {
+  font-size: 1.6em;
+  opacity: 0.6;
+  padding: 0 0.2em;
+}
+.slide .waxon-flow-arrow-dashed { opacity: 0.4; font-style: italic; }
+
+/* ---------- Timeline ----------
+ * :::timeline horizontal / :::timeline vertical with :: entries. Each
+ * entry gets a dot marker and label above its content body. */
+.slide .waxon-timeline {
+  display: flex;
+  gap: 1.2em;
+  margin: 1em 0;
+}
+.slide .waxon-timeline-horizontal { flex-direction: row; flex-wrap: wrap; }
+.slide .waxon-timeline-vertical   { flex-direction: column; }
+.slide .waxon-timeline-entry {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3em;
+  position: relative;
+  padding-top: 0.8em;
+}
+.slide .waxon-timeline-horizontal .waxon-timeline-entry {
+  border-top: 2px solid var(--foreground2, currentColor);
+}
+.slide .waxon-timeline-vertical .waxon-timeline-entry {
+  border-left: 2px solid var(--foreground2, currentColor);
+  padding-left: 1em;
+  padding-top: 0;
+}
+.slide .waxon-timeline-marker {
+  position: absolute;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--accent, currentColor);
+}
+.slide .waxon-timeline-horizontal .waxon-timeline-marker {
+  top: -6px;
+  left: 0;
+}
+.slide .waxon-timeline-vertical .waxon-timeline-marker {
+  top: 0;
+  left: -6px;
+}
+.slide .waxon-timeline-label {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  font-size: 0.9em;
+}
+.slide .waxon-timeline-label.red    { color: var(--color-red,    #ef4444); }
+.slide .waxon-timeline-label.green  { color: var(--color-green,  #22c55e); }
+.slide .waxon-timeline-label.yellow { color: var(--color-yellow, #eab308); }
+.slide .waxon-timeline-label.blue   { color: var(--color-blue,   #3b82f6); }
+.slide .waxon-timeline-label.aqua   { color: var(--color-aqua,   #06b6d4); }
+.slide .waxon-timeline-body > :first-child { margin-top: 0; }
+.slide .waxon-timeline-body > :last-child  { margin-bottom: 0; }
+
+/* ---------- Quote block ----------
+ * :::quote with optional ::by attribution. Theme-aware border color. */
+.slide .waxon-quote {
+  border-left: 4px solid var(--accent, currentColor);
+  padding: 0.4em 1em;
+  margin: 1em 0;
+  font-style: italic;
+  font-size: 1.1em;
+}
+.slide .waxon-quote.red    { border-left-color: var(--color-red,    #ef4444); }
+.slide .waxon-quote.green  { border-left-color: var(--color-green,  #22c55e); }
+.slide .waxon-quote.yellow { border-left-color: var(--color-yellow, #eab308); }
+.slide .waxon-quote.blue   { border-left-color: var(--color-blue,   #3b82f6); }
+.slide .waxon-quote.aqua   { border-left-color: var(--color-aqua,   #06b6d4); }
+.slide .waxon-quote > :first-child { margin-top: 0; }
+.slide .waxon-quote-by {
+  margin-top: 0.4em;
+  font-size: 0.8em;
+  font-style: normal;
+  opacity: 0.6;
+}
+
+/* ---------- Stat block ----------
+ * :::stat <color> with ::label / ::context. Big centered number. */
+.slide .waxon-stat {
+  text-align: center;
+  margin: 1.2em 0;
+  padding: 0.5em 0;
+}
+.slide .waxon-stat-number {
+  font-size: 4em;
+  font-weight: 700;
+  line-height: 1;
+  font-family: var(--font-mono);
+}
+.slide .waxon-stat.red    .waxon-stat-number { color: var(--color-red,    #ef4444); }
+.slide .waxon-stat.green  .waxon-stat-number { color: var(--color-green,  #22c55e); }
+.slide .waxon-stat.yellow .waxon-stat-number { color: var(--color-yellow, #eab308); }
+.slide .waxon-stat.blue   .waxon-stat-number { color: var(--color-blue,   #3b82f6); }
+.slide .waxon-stat.aqua   .waxon-stat-number { color: var(--color-aqua,   #06b6d4); }
+.slide .waxon-stat-label {
+  font-size: 1.1em;
+  margin-top: 0.2em;
+  opacity: 0.85;
+}
+.slide .waxon-stat-context {
+  font-size: 0.8em;
+  margin-top: 0.4em;
+  opacity: 0.6;
+}
+
+/* ---------- Badge pills ----------
+ * Inline .badge-green{SHIPPED} renders as a rounded pill with a tinted
+ * background. The color class is applied alongside .waxon-badge so theme
+ * palette vars drive the background. */
+.slide .waxon-badge {
+  display: inline-block;
+  padding: 0.05em 0.5em;
+  border-radius: 999px;
+  font-family: var(--font-mono);
+  font-size: 0.75em;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  line-height: 1.6;
+}
+.slide .waxon-badge.red    { background: color-mix(in srgb, var(--color-red,    #ef4444) 25%, transparent); color: var(--color-red,    #ef4444); border: 1px solid var(--color-red,    #ef4444); }
+.slide .waxon-badge.green  { background: color-mix(in srgb, var(--color-green,  #22c55e) 25%, transparent); color: var(--color-green,  #22c55e); border: 1px solid var(--color-green,  #22c55e); }
+.slide .waxon-badge.yellow { background: color-mix(in srgb, var(--color-yellow, #eab308) 25%, transparent); color: var(--color-yellow, #eab308); border: 1px solid var(--color-yellow, #eab308); }
+.slide .waxon-badge.blue   { background: color-mix(in srgb, var(--color-blue,   #3b82f6) 25%, transparent); color: var(--color-blue,   #3b82f6); border: 1px solid var(--color-blue,   #3b82f6); }
+.slide .waxon-badge.aqua   { background: color-mix(in srgb, var(--color-aqua,   #06b6d4) 25%, transparent); color: var(--color-aqua,   #06b6d4); border: 1px solid var(--color-aqua,   #06b6d4); }
+
+/* ---------- Mid-slide horizontal rule ----------
+ * The parser emits <hr class="waxon-hr"/> for standalone 4+ dash lines
+ * so goldmark doesn't interpret them as setext underlines. */
+.slide .waxon-hr {
+  border: none;
+  border-top: 1px solid var(--foreground2, currentColor);
+  opacity: 0.4;
+  margin: 1em 0;
+}
+
+/* ---------- Slide transitions ----------
+ * Applied via [data-transition="fade"] on the top-level wrapper. CSS
+ * drives the crossfade; JS just swaps slide content on navigation. The
+ * animation replays when the slide's inner HTML is replaced because we
+ * toggle the attribute on a short delay from the render pipeline. */
+[data-transition="fade"] .slide {
+  animation: waxon-slide-fade 240ms ease-out;
+}
+@keyframes waxon-slide-fade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .footer {
@@ -948,7 +1187,7 @@ html, body {
 {{end}}
 </style>
 </head>
-<body>
+<body{{if .Transition}} data-transition="{{.Transition}}"{{end}}>
 <div class="app" id="app" tabindex="-1">
 
 <div class="banner" id="banner" role="status" aria-live="polite">
@@ -1172,6 +1411,13 @@ html, body {
   function render() {
     var view = activeView(current);
     renderMain.innerHTML = view.html;
+    // Retrigger CSS transitions (like [data-transition="fade"]) that run
+    // on the .slide element. Removing and re-adding the class forces the
+    // browser to restart any animation declared on .slide, so each
+    // navigation re-plays the effect instead of running it once on load.
+    renderMain.classList.remove('slide');
+    void renderMain.offsetWidth;
+    renderMain.classList.add('slide');
     if (view.slide && view.slide.id) {
       renderMain.setAttribute('data-slide-id', view.slide.id);
     } else {
@@ -2132,7 +2378,7 @@ html, body {
 </style>
 </head>
 <body>
-<div class="deck">
+<div class="deck"{{if .Transition}} data-transition="{{.Transition}}"{{end}}>
 {{range .Slides}}
 <div class="slide" data-index="{{.Index}}"{{if .ID}} id="{{.ID}}"{{end}}>
 {{.HTML}}

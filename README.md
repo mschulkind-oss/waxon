@@ -322,6 +322,135 @@ $29/mo.
 
 Then link directly: `http://localhost:8080/d/deck.slides#pricing`. IDs survive reordering — unlike `#3` which shifts when you add a slide above it. An ID can contain letters, digits, hyphens, and underscores. A bare `---` (no ID) still works exactly as before.
 
+### Card Blocks
+
+Wrap a metric, call-out, or bordered box in a `:::card` fence. The border takes an optional palette color.
+
+```markdown
+:::card green
+.yellow{W&S Flow} .dim{— planned: 18 weeks →} .green{a weekend}
+
+.dim{18× faster. One person.}
+:::
+```
+
+Use `:::card-left` for a left-border-only blockquote style. Card bodies are parsed as markdown — headings, lists, and inline color all work inside.
+
+### Grid Layouts
+
+For three or more columns, or a matrix of cells, reach for `:::grid`:
+
+```markdown
+:::grid 3
+::col
+### Option A
+Postgres, boring and reliable.
+::col
+### Option B
+Columnar store, fast but new ops burden.
+::col
+### Option C
+Custom build. Don't.
+:::
+```
+
+`:::grid 2x2` makes a 2×2 matrix. Each `::col` (or `::cell`) takes an optional palette class for its border.
+
+### Flow Diagrams
+
+Simple box-and-arrow flows use `:::flow`:
+
+```markdown
+:::flow horizontal
+.blue[Parse] --> .yellow[Transform] --> .green[Render]
+:::
+```
+
+`-->` draws a solid arrow; `-.->` draws a dashed one. Boxes can carry a palette prefix `.color[text]` to tint the box border and text. Orientation is `horizontal` (default) or `vertical`. Branching and labeled arrows are not yet supported — reach for raw HTML for anything beyond a linear chain.
+
+### Timeline
+
+Narrate a sequence with `:::timeline`:
+
+```markdown
+:::timeline horizontal
+:: 2018
+Prototype — 1 person, 2 weeks
+:: 2021
+.yellow{Adoption} — 12 teams, 6 months
+:: .green 2025
+Standard across the org
+:::
+```
+
+Each `::` line is an entry. The text after `::` becomes the label — optionally prefixed with `.color` to tint it. The body underneath is the entry's content and goes through markdown as usual.
+
+### Quote Block
+
+Pull-quotes with attribution use `:::quote`:
+
+```markdown
+:::quote green
+That's the best thing I've seen in years.
+::by CTO, Acme Corp — after a 2-week prototype
+:::
+```
+
+`::by` is optional. The block takes a palette class on the opener for border color.
+
+### Stat Block
+
+One big number with context uses `:::stat`:
+
+```markdown
+:::stat green
+18×
+::label faster than planned
+::context W&S Flow — 1 person, 1 weekend
+:::
+```
+
+The number before `::label` renders at `4em`; label is a second line, context is dimmer and smaller. Great for executive summary slides and dashboards.
+
+### Badge Pills
+
+Inline status badges use a `.badge-color{text}` syntax similar to inline color:
+
+```markdown
+- .badge-green{SHIPPED} — Auth rewrite
+- .badge-yellow{IN PROGRESS} — Dashboard v2
+- .badge-red{BLOCKED} — Migration 042
+```
+
+The palette is the same closed set: red, green, yellow, blue, aqua. Pills pull their color from the theme's `--color-*` vars and render with a tinted background and matching border.
+
+### Mid-Slide Horizontal Rule
+
+Need a visual divider *inside* a slide? A slide separator is exactly three dashes (`---`). For an in-slide rule, use **four or more** dashes, asterisks, or underscores on their own line with a blank line above:
+
+```markdown
+Above the rule
+
+----
+
+Below the rule
+```
+
+The parser explicitly emits `<hr class="waxon-hr">` for these so goldmark doesn't interpret them as setext heading underlines.
+
+### Slide Transitions
+
+Set a transition in frontmatter to cross-fade between slides:
+
+```yaml
+---
+title: "Quarterly Review"
+transition: fade
+---
+```
+
+Only `fade` is wired up in the first cut. Other effects (typewriter, scroll) are on the wishlist.
+
 ---
 
 ## Themes

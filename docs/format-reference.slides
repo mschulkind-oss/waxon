@@ -3,6 +3,7 @@ title: "Waxon Format Reference"
 author: "waxon"
 theme: terminal
 aspect: "16:9"
+transition: fade
 footer: "format reference — one slide per feature"
 ---
 
@@ -131,10 +132,127 @@ Content that stays in the file but off the rendered slide.
 <!-- comment(@alice): Review comments attribute an author and survive version control. -->
 <!-- comment(@agent): Agents can reply in the same channel. -->
 
+--- #card
+
+# Card Blocks
+
+A bordered container for a metric, card, or call-out.
+
+:::card green
+.yellow{W&S Flow} .dim{— planned: 18 weeks →} .green{a weekend}
+
+.dim{18× faster. One person.}
+:::
+
+:::card-left red
+**Incident 2026-03-14** — Postgres failover stuck for 8 minutes.
+
+Root cause: stale DNS TTL on standby.
+:::
+
+<!-- note: `:::card` takes an optional palette color; `:::card-left` drops the full border for a blockquote feel. -->
+
+--- #grid
+
+# Grid Layout
+
+:::grid 3
+::col green
+### Option A
+Ship with Postgres. Boring, reliable.
+::col yellow
+### Option B
+Switch to a column store. Fast, new ops burden.
+::col red
+### Option C
+Build something custom. Don't.
+:::
+
+Grids take either `N` (linear columns) or `NxM` (matrix). Cells accept optional palette colors on the `::col` marker.
+
+--- #flow
+
+# Flow Diagrams
+
+:::flow horizontal
+.blue[Parse] --> .yellow[Transform] --> .green[Render]
+:::
+
+:::flow horizontal
+[Proposal] --> [Review] -.-> [Revision] --> [Merge]
+:::
+
+Arrows: `-->` solid, `-.->` dashed. Prefix a box with `.color` to tint its border.
+
+--- #timeline
+
+# Timeline
+
+:::timeline horizontal
+:: 2018
+.dim{Prototype — 1 person, 2 weeks}
+:: 2021
+.yellow{Adoption — 12 teams, 6 months}
+:: .green 2025
+Standard across the org
+:::
+
+Each `::` entry gets a marker dot and label. Label can take a `.color` prefix. Orient as `horizontal` or `vertical`.
+
+--- #quote
+
+# Quote Block
+
+:::quote green
+That's the best thing I've seen in years.
+::by CTO, Acme Corp — after a 2-week prototype
+:::
+
+`::by` is optional. The block takes an optional palette color for the left border.
+
+--- #stat
+
+# Stat Block
+
+:::stat green
+18×
+::label faster than planned
+::context W&S Flow — 1 person, 1 weekend
+:::
+
+A purpose-built big number display. Number inherits the palette color, label is dim, context is smaller and dimmer still.
+
+--- #badges
+
+# Badge Pills
+
+Status dashboards become readable with inline pill badges:
+
+- .badge-green{SHIPPED} — W&S Flow, Auth rewrite, Event pipeline
+- .badge-yellow{IN PROGRESS} — Dashboard v2, Cache layer
+- .badge-red{BLOCKED} — Migration 042 (waiting on legal)
+- .badge-blue{REVIEW} — Proposal 17, Cost model
+
+Palette: red / green / yellow / blue / aqua. Uses the theme's `--color-*` vars.
+
+--- #horizontal-rule
+
+# Mid-Slide Horizontal Rule
+
+Standard `---` is a slide separator in waxon. For a divider *inside* a slide, use **4 or more** dashes, asterisks, or underscores on their own line.
+
+Above the rule
+
+----
+
+Below the rule
+
+The rule only fires on a line preceded by blank space, so setext headings (`Title\n---\n`) still work.
+
 --- #closing
 
 # One File, Every Feature
 
-.aqua{Inline color}, full-line color, compare panes, slide IDs, pauses, variants, notes, ai notes, and comments — all in plain text.
+.aqua{Inline color}, full-line color, compare panes, slide IDs, pauses, variants, cards, grids, flows, timelines, quotes, stats, badges, and mid-slide rules — all in plain text.
 
 Agents author it. Humans review it. Git diffs it. PDFs export it.

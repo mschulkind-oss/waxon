@@ -15,6 +15,7 @@ type Meta struct {
 	Theme           string `yaml:"theme,omitempty" json:"theme,omitempty"`
 	Aspect          string `yaml:"aspect,omitempty" json:"aspect,omitempty"`
 	Footer          string `yaml:"footer,omitempty" json:"footer,omitempty"`
+	Transition      string `yaml:"transition,omitempty" json:"transition,omitempty"`
 	TerminalVariant string `yaml:"terminal-variant,omitempty" json:"terminal_variant,omitempty"`
 	TerminalEffects bool   `yaml:"terminal-effects,omitempty" json:"terminal_effects,omitempty"`
 }

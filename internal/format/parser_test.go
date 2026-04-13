@@ -739,7 +739,7 @@ Left body
 ::right green
 Right body
 :::`
-	out := applyCompareBlocks(input)
+	out := applyFenceBlocks(input)
 	if !contains(out, `<div class="waxon-compare">`) {
 		t.Error("missing waxon-compare wrapper")
 	}
@@ -761,7 +761,7 @@ A
 ::right
 B
 :::`
-	out := applyCompareBlocks(input)
+	out := applyFenceBlocks(input)
 	if !contains(out, `<div class="waxon-compare-pane waxon-compare-left">`) {
 		t.Errorf("left pane without color should have no palette class, got %q", out)
 	}
@@ -771,7 +771,7 @@ func TestCompareUnterminated(t *testing.T) {
 	input := `:::compare
 ::left
 unfinished`
-	out := applyCompareBlocks(input)
+	out := applyFenceBlocks(input)
 	if !contains(out, `waxon-error`) {
 		t.Errorf("unterminated compare should emit error banner, got %q", out)
 	}
@@ -785,7 +785,7 @@ A
 ::right
 B
 :::`
-	out := applyCompareBlocks(input)
+	out := applyFenceBlocks(input)
 	if !contains(out, `waxon-error`) {
 		t.Errorf("nested compare should emit error, got %q", out)
 	}
@@ -819,6 +819,308 @@ ok
 	}
 	if !contains(c, `<span class="yellow">warn</span>`) {
 		t.Errorf("color transforms should run inside compare pane, got %q", c)
+	}
+}
+
+// ---------- Card fence ----------
+
+func TestCardFenceDefault(t *testing.T) {
+	input := ":::card\nbody text\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `<div class="waxon-card">`) {
+		t.Errorf("missing waxon-card wrapper, got %q", out)
+	}
+	if !contains(out, "body text") {
+		t.Errorf("card body missing, got %q", out)
+	}
+}
+
+func TestCardFenceWithPalette(t *testing.T) {
+	input := ":::card green\n.yellow{stat}\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `<div class="waxon-card green">`) {
+		t.Errorf("card palette class missing, got %q", out)
+	}
+}
+
+func TestCardLeftFence(t *testing.T) {
+	input := ":::card-left\nquoted\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `<div class="waxon-card waxon-card-left">`) {
+		t.Errorf("card-left class missing, got %q", out)
+	}
+}
+
+func TestCardFenceUnterminated(t *testing.T) {
+	out := applyFenceBlocks(":::card\nbody")
+	if !contains(out, "waxon-error") {
+		t.Errorf("unterminated card should emit error, got %q", out)
+	}
+}
+
+// ---------- Grid fence ----------
+
+func TestGridFence3Col(t *testing.T) {
+	input := ":::grid 3\n::col\nA\n::col\nB\n::col\nC\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `grid-template-columns: repeat(3, 1fr);`) {
+		t.Errorf("3col layout missing, got %q", out)
+	}
+	if !contains(out, "A") || !contains(out, "B") || !contains(out, "C") {
+		t.Errorf("grid cells missing, got %q", out)
+	}
+}
+
+func TestGridFence2x2(t *testing.T) {
+	input := ":::grid 2x2\n::cell\n1\n::cell\n2\n::cell\n3\n::cell\n4\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `grid-template-columns: repeat(2, 1fr); grid-template-rows: repeat(2, 1fr);`) {
+		t.Errorf("2x2 layout missing, got %q", out)
+	}
+}
+
+func TestGridFenceBadSize(t *testing.T) {
+	out := applyFenceBlocks(":::grid bogus\n::col\nA\n:::")
+	if !contains(out, "waxon-error") {
+		t.Errorf("bad grid size should emit error, got %q", out)
+	}
+}
+
+// ---------- Flow fence ----------
+
+func TestFlowHorizontal(t *testing.T) {
+	input := ":::flow horizontal\n[A] --> [B] --> [C]\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `waxon-flow waxon-flow-horizontal`) {
+		t.Errorf("flow class missing, got %q", out)
+	}
+	if !contains(out, `<div class="waxon-flow-node">A</div>`) ||
+		!contains(out, `<div class="waxon-flow-node">B</div>`) ||
+		!contains(out, `<div class="waxon-flow-node">C</div>`) {
+		t.Errorf("flow nodes missing, got %q", out)
+	}
+	if !contains(out, "&rarr;") {
+		t.Errorf("flow arrow glyph missing, got %q", out)
+	}
+}
+
+func TestFlowVertical(t *testing.T) {
+	input := ":::flow vertical\n[Input] --> [Output]\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `waxon-flow-vertical`) {
+		t.Errorf("vertical class missing, got %q", out)
+	}
+	if !contains(out, "&darr;") {
+		t.Errorf("vertical arrow glyph missing, got %q", out)
+	}
+}
+
+func TestFlowDashedArrow(t *testing.T) {
+	input := ":::flow horizontal\n[A] -.-> [B]\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, "waxon-flow-arrow-dashed") {
+		t.Errorf("dashed arrow class missing, got %q", out)
+	}
+}
+
+func TestFlowWithPaletteNode(t *testing.T) {
+	input := ":::flow horizontal\n.green[Success] --> .red[Fail]\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `<div class="waxon-flow-node green">Success</div>`) ||
+		!contains(out, `<div class="waxon-flow-node red">Fail</div>`) {
+		t.Errorf("flow palette nodes missing, got %q", out)
+	}
+}
+
+// ---------- Timeline fence ----------
+
+func TestTimelineHorizontal(t *testing.T) {
+	input := ":::timeline horizontal\n:: 2020\nfoo\n:: 2025\nbar\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `waxon-timeline waxon-timeline-horizontal`) {
+		t.Errorf("timeline class missing, got %q", out)
+	}
+	if !contains(out, `waxon-timeline-marker`) {
+		t.Errorf("timeline markers missing, got %q", out)
+	}
+	if !contains(out, `>2020<`) || !contains(out, `>2025<`) {
+		t.Errorf("timeline labels missing, got %q", out)
+	}
+}
+
+func TestTimelineColoredLabel(t *testing.T) {
+	input := ":::timeline horizontal\n:: .green 2025\nwon\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `waxon-timeline-label green`) {
+		t.Errorf("timeline colored label class missing, got %q", out)
+	}
+	if !contains(out, `>2025<`) {
+		t.Errorf("timeline label stripped color but kept year, got %q", out)
+	}
+}
+
+// ---------- Quote fence ----------
+
+func TestQuoteFence(t *testing.T) {
+	input := ":::quote\nThat's great.\n::by CTO, Acme\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `<div class="waxon-quote">`) {
+		t.Errorf("quote class missing, got %q", out)
+	}
+	if !contains(out, "That's great.") {
+		t.Errorf("quote body missing, got %q", out)
+	}
+	if !contains(out, `waxon-quote-by">— CTO, Acme`) {
+		t.Errorf("quote attribution missing, got %q", out)
+	}
+}
+
+func TestQuoteFenceWithPalette(t *testing.T) {
+	input := ":::quote green\nYes.\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `<div class="waxon-quote green">`) {
+		t.Errorf("quote palette missing, got %q", out)
+	}
+}
+
+// ---------- Stat fence ----------
+
+func TestStatFence(t *testing.T) {
+	input := ":::stat green\n18×\n::label faster than planned\n::context W&S Flow — 1 person\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `<div class="waxon-stat green">`) {
+		t.Errorf("stat class missing, got %q", out)
+	}
+	if !contains(out, `waxon-stat-number">18×`) {
+		t.Errorf("stat number missing, got %q", out)
+	}
+	if !contains(out, "faster than planned") {
+		t.Errorf("stat label missing, got %q", out)
+	}
+	if !contains(out, "W&amp;S Flow") {
+		t.Errorf("stat context should be html-escaped, got %q", out)
+	}
+}
+
+func TestStatFenceEmpty(t *testing.T) {
+	out := applyFenceBlocks(":::stat\n::label foo\n:::")
+	if !contains(out, "waxon-error") {
+		t.Errorf("empty stat should emit error, got %q", out)
+	}
+}
+
+// ---------- Badge inline ----------
+
+func TestBadgeInline(t *testing.T) {
+	out := applyColorTransforms(".badge-green{SHIPPED}")
+	if !contains(out, `<span class="waxon-badge green">SHIPPED</span>`) {
+		t.Errorf("badge inline span missing, got %q", out)
+	}
+}
+
+func TestBadgeUnknownColor(t *testing.T) {
+	input := ".badge-purple{WIP}"
+	out := applyColorTransforms(input)
+	if out != input {
+		t.Errorf("unknown badge color should be literal, got %q", out)
+	}
+}
+
+func TestBadgeDoesNotBreakPlainColor(t *testing.T) {
+	out := applyColorTransforms(".green{ok}")
+	if !contains(out, `<span class="green">ok</span>`) {
+		t.Errorf("plain palette class still needs to work after badge patch, got %q", out)
+	}
+}
+
+// ---------- Mid-slide HR ----------
+
+func TestMidSlideHR4Dashes(t *testing.T) {
+	input := "before\n\n----\n\nafter"
+	out := applyMidSlideHR(input)
+	if !contains(out, `<hr class="waxon-hr" />`) {
+		t.Errorf("4-dash HR not emitted, got %q", out)
+	}
+}
+
+func TestMidSlideHRAsterisks(t *testing.T) {
+	input := "before\n\n****\n\nafter"
+	out := applyMidSlideHR(input)
+	if !contains(out, `<hr class="waxon-hr" />`) {
+		t.Errorf("4-star HR not emitted, got %q", out)
+	}
+}
+
+func TestMidSlideHRNotAfterText(t *testing.T) {
+	input := "Title\n----\nbody"
+	out := applyMidSlideHR(input)
+	if contains(out, "waxon-hr") {
+		t.Errorf("setext heading underline should NOT become HR, got %q", out)
+	}
+}
+
+func TestMidSlideHRThreeDashesLeftAlone(t *testing.T) {
+	input := "\n---\n"
+	out := applyMidSlideHR(input)
+	if contains(out, "waxon-hr") {
+		t.Errorf("3-dash separator should be left alone by applyMidSlideHR, got %q", out)
+	}
+}
+
+// ---------- Pause + fence blocks ----------
+
+func TestPauseBetweenCards(t *testing.T) {
+	// A <!-- pause --> between two :::card fences must leave the pause
+	// sentinel as a top-level element between them so the reveal JS can
+	// group them. This exercises the ordering of extractDirectives
+	// (which turns pauses into sentinels) and applyFenceBlocks (which
+	// turns fences into block-level divs).
+	input := "---\ntitle: T\n---\n\n:::card\nfirst\n:::\n\n<!-- pause -->\n\n:::card\nsecond\n:::\n"
+	deck, err := Parse(input)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(deck.Slides) != 1 {
+		t.Fatalf("want 1 slide, got %d", len(deck.Slides))
+	}
+	if deck.Slides[0].Pauses != 1 {
+		t.Errorf("want 1 pause, got %d", deck.Slides[0].Pauses)
+	}
+	c := deck.Slides[0].Content
+	if !contains(c, `waxon-pause`) {
+		t.Errorf("pause sentinel should survive between cards, got %q", c)
+	}
+	firstIdx := indexOf(c, "first")
+	pauseIdx := indexOf(c, "waxon-pause")
+	secondIdx := indexOf(c, "second")
+	if firstIdx < 0 || pauseIdx < 0 || secondIdx < 0 {
+		t.Fatalf("missing one of first/pause/second in %q", c)
+	}
+	if !(firstIdx < pauseIdx && pauseIdx < secondIdx) {
+		t.Errorf("expected first < pause < second; got indices %d/%d/%d",
+			firstIdx, pauseIdx, secondIdx)
+	}
+}
+
+func indexOf(s, sub string) int {
+	for i := 0; i+len(sub) <= len(s); i++ {
+		if s[i:i+len(sub)] == sub {
+			return i
+		}
+	}
+	return -1
+}
+
+// ---------- Transition frontmatter ----------
+
+func TestParseTransitionFrontmatter(t *testing.T) {
+	input := "---\ntitle: T\ntransition: fade\n---\n\n# One\n"
+	deck, err := Parse(input)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if deck.Meta.Transition != "fade" {
+		t.Errorf("transition not parsed, got %q", deck.Meta.Transition)
 	}
 }
 
