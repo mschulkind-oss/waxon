@@ -1357,6 +1357,8 @@ html, body {
     <table>
       <tr><td><kbd>→</kbd><kbd>Space</kbd><kbd>Enter</kbd></td><td>Next slide / reveal next pause</td></tr>
       <tr><td><kbd>←</kbd><kbd>Backspace</kbd></td><td>Previous slide / hide last reveal</td></tr>
+      <tr><td><kbd>Shift</kbd>+<kbd>→</kbd></td><td>Jump to next slide (skip reveals)</td></tr>
+      <tr><td><kbd>Shift</kbd>+<kbd>←</kbd></td><td>Jump to previous slide (skip reveals)</td></tr>
       <tr><td><kbd>n</kbd></td><td>Next slide (alias)</td></tr>
       <tr><td><kbd>p</kbd></td><td>Previous slide (alias)</td></tr>
       <tr><td><kbd>Home</kbd> / <kbd>g</kbd> <kbd>g</kbd></td><td>Jump to first slide</td></tr>
@@ -2111,8 +2113,14 @@ html, body {
     }
 
     switch (e.key) {
-      case 'ArrowRight': case ' ': case 'Enter': e.preventDefault(); next(); return;
-      case 'ArrowLeft': case 'Backspace': e.preventDefault(); prev(); return;
+      case 'ArrowRight': case ' ': case 'Enter':
+        e.preventDefault();
+        if (e.shiftKey) { go(current + 1); } else { next(); }
+        return;
+      case 'ArrowLeft': case 'Backspace':
+        e.preventDefault();
+        if (e.shiftKey) { go(current - 1); } else { prev(); }
+        return;
       case 'Home': e.preventDefault(); go(0); return;
       case 'End': e.preventDefault(); go(total - 1); return;
       case 'f': e.preventDefault(); toggleFullscreen(); return;
