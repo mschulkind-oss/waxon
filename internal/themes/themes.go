@@ -37,6 +37,7 @@ func All() []Theme {
 		{Name: "forest", Description: "Mossy greens and bark browns for an outdoors feel", CSS: forestCSS},
 		{Name: "ocean", Description: "Deep teals and seafoam for a calm aquatic palette", CSS: oceanCSS},
 		{Name: "sunset", Description: "Warm orange-to-violet gradient backdrop", CSS: sunsetCSS},
+		{Name: "edit-dos", Description: "MS-DOS EDIT.COM — blue + yellow box-drawing, 80×25 vibes", CSS: editDosCSS},
 	}
 }
 
@@ -68,6 +69,19 @@ func init() {
 			return ""
 		}
 		return template.CSS(t.CSS)
+	}
+	// Register the theme listing used by the in-browser theme picker.
+	render.AllThemes = func() []render.ThemeEntry {
+		themes := All()
+		out := make([]render.ThemeEntry, len(themes))
+		for i, t := range themes {
+			out[i] = render.ThemeEntry{
+				Name:        t.Name,
+				Description: t.Description,
+				CSS:         t.CSS,
+			}
+		}
+		return out
 	}
 }
 
@@ -640,4 +654,140 @@ body {
 .slide th { background: rgba(0, 0, 0, 0.35); }
 .slide th, .slide td { border-color: rgba(255, 154, 60, 0.3); }
 .progress { background: linear-gradient(90deg, #ff9a3c, #c44569); }
+`
+
+// editDosCSS evokes the MS-DOS EDIT.COM / QBasic editor: IBM VGA blue
+// background (#0000AA), bright white body text, yellow chrome accents,
+// and box-drawing frames rendered via ::before pseudo-elements on the
+// slide container. Monospace only — no web fonts fetched.
+const editDosCSS = `
+:root {
+  --slide-bg: #0000aa;
+  --slide-fg: #ffffff;
+  --accent: #ffff55;
+  --font-body: 'Perfect DOS VGA 437', 'IBM Plex Mono', 'Cascadia Code', 'Courier New', monospace;
+  --font-heading: 'Perfect DOS VGA 437', 'IBM Plex Mono', 'Cascadia Code', 'Courier New', monospace;
+  --font-mono: 'Perfect DOS VGA 437', 'IBM Plex Mono', 'Cascadia Code', 'Courier New', monospace;
+  --color-red: #ff5555;
+  --color-green: #55ff55;
+  --color-yellow: #ffff55;
+  --color-blue: #5555ff;
+  --color-aqua: #55ffff;
+  --color-dim: #aaaaaa;
+  --slide-padding: 3.5vmin;
+}
+body {
+  background: #0000aa;
+  font-feature-settings: "calt" 0, "liga" 0;
+}
+.slide {
+  /* Double-ruled frame in the classic IBM CP437 style. The outer border
+   * is the main window; the inner ::before draws a title bar region. */
+  border: 2px solid #ffffff;
+  box-shadow:
+    inset 0 0 0 4px #0000aa,
+    inset 0 0 0 5px #ffffff,
+    0 0 0 2px #000000;
+  padding: calc(var(--slide-padding) + 1.5em) var(--slide-padding) var(--slide-padding);
+  background:
+    linear-gradient(#ffff55, #ffff55) 0 0 / 100% 1.6em no-repeat,
+    #0000aa;
+}
+.slide::before {
+  content: '─[ FILE ]── EDIT ── SEARCH ── VIEW ── OPTIONS ── HELP ──────';
+  position: absolute;
+  top: 0.15em;
+  left: 0.6em;
+  right: 0.6em;
+  height: 1.4em;
+  line-height: 1.4em;
+  color: #000000;
+  font-family: var(--font-mono);
+  font-size: 0.7em;
+  letter-spacing: 0.05em;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.slide h1 {
+  color: #ffff55;
+  background: #0000aa;
+  text-shadow: 2px 2px 0 #000000;
+  border-bottom: 1px dashed #ffff55;
+  padding-bottom: 0.2em;
+  margin-bottom: 0.5em;
+  font-size: 2em;
+}
+.slide h2 { color: #55ffff; border-bottom: 1px dotted #55ffff; padding-bottom: 0.15em; font-size: 1.6em; }
+.slide h3 { color: #55ff55; font-size: 1.25em; }
+.slide p, .slide li { color: #ffffff; }
+.slide strong { color: #ffff55; }
+.slide em { color: #55ffff; font-style: normal; text-decoration: underline; }
+.slide a { color: #55ffff; text-decoration: underline; }
+.slide ul { list-style: none; padding-left: 1em; }
+.slide ul li::before { content: '► '; color: #ffff55; margin-right: 0.3em; }
+.slide ol { padding-left: 1.8em; color: #ffff55; }
+.slide ol li { color: #ffffff; }
+.slide pre {
+  background: #000000;
+  color: #55ff55;
+  border: 1px solid #ffffff;
+  border-radius: 0;
+  padding: 0.6em 1em;
+  box-shadow: inset 0 0 0 1px #0000aa;
+}
+.slide :not(pre) > code {
+  background: #000000;
+  color: #ffff55;
+  padding: 0 0.3em;
+  border-radius: 0;
+  border: 1px solid #55ffff;
+}
+.slide blockquote {
+  border-left: 3px double #ffff55;
+  color: #aaaaaa;
+  background: color-mix(in srgb, #000000 40%, transparent);
+  padding: 0.4em 0.8em;
+  font-style: normal;
+}
+.slide table { border-collapse: collapse; }
+.slide th {
+  background: #ffff55;
+  color: #0000aa;
+  border: 1px solid #ffffff;
+  padding: 0.3em 0.7em;
+}
+.slide td {
+  border: 1px solid #55ffff;
+  padding: 0.25em 0.7em;
+}
+.slide hr, .slide .waxon-hr {
+  border: none;
+  border-top: 1px solid #55ffff;
+  opacity: 1;
+}
+.progress {
+  background: #ffff55;
+  box-shadow: 0 0 0 1px #ffffff;
+}
+.footer, .footer-counter {
+  color: #ffff55;
+  opacity: 0.85;
+}
+/* Card / compare / stat blocks get the signature DOS dialog border. */
+.slide .waxon-card,
+.slide .waxon-compare-pane,
+.slide .waxon-stat,
+.slide .waxon-quote,
+.slide .waxon-timeline,
+.slide .waxon-flow,
+.slide .waxon-grid-cell {
+  border: 1px solid #ffffff;
+  box-shadow: inset 0 0 0 1px #0000aa, 1px 1px 0 #000000;
+  background: color-mix(in srgb, #000000 30%, transparent);
+}
+.slide .waxon-card-left {
+  border-left: 3px double #ffff55;
+}
+.slide .waxon-badge { border-radius: 0; border-width: 1px; }
 `

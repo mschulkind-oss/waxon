@@ -96,6 +96,11 @@ func RenderHTML(deck *format.Deck, opts Options) (string, error) {
 		return "", err
 	}
 
+	themesJSON, err := json.Marshal(AllThemes())
+	if err != nil {
+		return "", err
+	}
+
 	stateJSON, err := json.Marshal(struct {
 		Path            string `json:"path"`
 		DeckTheme       string `json:"deckTheme"`
@@ -125,6 +130,7 @@ func RenderHTML(deck *format.Deck, opts Options) (string, error) {
 		DeckJSON:        template.JS(jsDeckJSON),
 		DecksJSON:       template.JS(decksJSON),
 		StateJSON:       template.JS(stateJSON),
+		ThemesJSON:      template.JS(themesJSON),
 		TotalSlides:     len(deck.Slides),
 	}
 
@@ -236,6 +242,7 @@ type templateData struct {
 	DeckJSON        template.JS
 	DecksJSON       template.JS
 	StateJSON       template.JS
+	ThemesJSON      template.JS
 	TotalSlides     int
 }
 
@@ -243,6 +250,19 @@ type templateData struct {
 // The themes package replaces this at init time.
 var ThemeCSS = func(theme string) template.CSS {
 	return ""
+}
+
+// ThemeEntry is a lightweight view of a theme for the picker panel.
+type ThemeEntry struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	CSS         string `json:"css"`
+}
+
+// AllThemes returns every built-in theme. The themes package replaces
+// this at init time; before then it returns nil.
+var AllThemes = func() []ThemeEntry {
+	return nil
 }
 
 // renderStandalone produces a print-friendly HTML page that pre-renders all
@@ -357,7 +377,7 @@ const pageTemplate = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}}</title>
-<style>
+<style id="theme-css">
 {{themeCSS .Theme}}
 </style>
 <style>
@@ -399,7 +419,7 @@ html, body {
   background: var(--slide-bg);
   color: var(--slide-fg);
   font-family: var(--font-body);
-  font-size: clamp(16px, 2.5vmin, 28px);
+  font-size: calc(clamp(16px, 2.5vmin, 28px) * var(--waxon-zoom, 1));
   line-height: 1.5;
 }
 
@@ -882,6 +902,12 @@ html, body {
   border-radius: 8px;
   padding: 4px;
   box-shadow: 0 4px 16px color-mix(in srgb, #000 30%, transparent);
+  transition: right 0.18s ease-out;
+}
+/* When a right-side panel is open, slide the FAB left so its buttons
+ * don't overlap the panel content. Panel width matches .panel rule. */
+.app:has(.panel.open) .fab {
+  right: calc(min(420px, 88vw) + 1.5vmin);
 }
 .fab .group { display: flex; gap: 2px; }
 .fab .divider {
@@ -1029,6 +1055,54 @@ html, body {
 .deck-item.active { border-left-color: var(--accent); background: var(--chrome-active); }
 .deck-item .title { font-weight: 600; }
 .deck-item .path { opacity: 0.6; font-size: var(--chrome-font-sm); font-family: var(--font-mono); margin-top: 2px; }
+
+/* ---------- Theme picker ----------
+ * Each swatch uses its own scoped style block (injected by JS) to preview
+ * the theme's --slide-bg / --slide-fg / --accent without affecting the
+ * live slide. Click a swatch to swap the active theme. */
+.theme-item {
+  cursor: pointer;
+  display: block;
+  padding: 10px 12px;
+  margin-bottom: 6px;
+  border: 1px solid var(--chrome-border);
+  border-radius: 6px;
+  transition: border-color 0.12s, background 0.12s;
+}
+.theme-item:hover { border-color: var(--accent); }
+.theme-item.active {
+  border-color: var(--accent);
+  background: var(--chrome-active);
+}
+.theme-item .name {
+  font-weight: 600;
+  font-family: var(--font-mono);
+  font-size: var(--chrome-font);
+  margin-bottom: 3px;
+}
+.theme-item .desc {
+  opacity: 0.7;
+  font-size: var(--chrome-font-sm);
+  line-height: 1.35;
+  margin-bottom: 8px;
+}
+.theme-swatch {
+  display: flex;
+  height: 28px;
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid var(--chrome-border);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  align-items: stretch;
+}
+.theme-swatch > span {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.03em;
+}
 
 .comment-form {
   padding: 12px 16px;
@@ -1217,6 +1291,7 @@ html, body {
       <button type="button" data-action="variants" aria-label="Toggle variants panel (v)" title="Variants — v"><kbd>v</kbd> variants</button>
       <button type="button" data-action="comments" aria-label="Toggle comments panel (c)" title="Comments — c"><kbd>c</kbd> comments</button>
       <button type="button" data-action="decks" aria-label="Toggle decks panel (d)" title="Decks — d"><kbd>d</kbd> decks</button>
+      <button type="button" data-action="themes" aria-label="Toggle themes panel (t)" title="Themes — t"><kbd>t</kbd> themes</button>
     </div>
     <div class="divider"></div>
     <div class="group">
@@ -1267,6 +1342,14 @@ html, body {
   <div class="panel-body" id="decks-body"></div>
 </aside>
 
+<aside class="panel" id="panel-themes" data-panel="themes" role="dialog" aria-modal="false" aria-labelledby="themes-title" hidden>
+  <div class="panel-header">
+    <span id="themes-title">Themes</span>
+    <button class="close" type="button" aria-label="Close themes panel">×</button>
+  </div>
+  <div class="panel-body" id="themes-body"></div>
+</aside>
+
 <div class="help-overlay" id="help-overlay" role="dialog" aria-modal="true" aria-labelledby="help-title">
   <div class="help-card" tabindex="-1">
     <h2 id="help-title">Keyboard shortcuts</h2>
@@ -1285,6 +1368,7 @@ html, body {
       <tr><td><kbd>v</kbd></td><td>Toggle variants panel</td></tr>
       <tr><td><kbd>c</kbd></td><td>Toggle comments panel</td></tr>
       <tr><td><kbd>d</kbd></td><td>Toggle decks panel</td></tr>
+      <tr><td><kbd>t</kbd></td><td>Toggle themes panel</td></tr>
       <tr><td><kbd>?</kbd></td><td>Toggle this help</td></tr>
       <tr><td><kbd>Esc</kbd></td><td>Close help / panel / exit fullscreen</td></tr>
     </table>
@@ -1292,7 +1376,9 @@ html, body {
     <table>
       <tr><td><kbd>]</kbd> / <kbd>[</kbd></td><td>Cycle next / previous variant on this slide</td></tr>
       <tr><td><kbd>x</kbd></td><td>Toggle compare mode (main vs active variant)</td></tr>
-      <tr><td><kbd>r</kbd></td><td>Reset variant, compare, theme override</td></tr>
+      <tr><td><kbd>T</kbd></td><td>Cycle to next theme (shift+t)</td></tr>
+      <tr><td><kbd>+</kbd> / <kbd>-</kbd></td><td>Zoom in / out (reflows content)</td></tr>
+      <tr><td><kbd>r</kbd></td><td>Reset variant, compare, zoom</td></tr>
       <tr><td><kbd>f</kbd></td><td>Toggle fullscreen</td></tr>
     </table>
     <div class="hint">
@@ -1311,6 +1397,7 @@ html, body {
 
   var deck = {{.DeckJSON}};
   var decks = {{.DecksJSON}};
+  var themes = {{.ThemesJSON}};
   var state = {{.StateJSON}};
 
   var total = deck.length;
@@ -1623,6 +1710,7 @@ html, body {
       if (name === 'variants') renderVariantsPanel();
       if (name === 'comments') renderCommentsPanel();
       if (name === 'decks') renderDecksPanel();
+      if (name === 'themes') renderThemesPanel();
       // Move focus into the panel header for screen reader users.
       // preventScroll: hidden panels extend the app's scrollWidth and a
       // plain focus() scrolls the app 420px left, exposing the hidden ones.
@@ -1794,6 +1882,98 @@ html, body {
     body.innerHTML = html;
   }
 
+  // ---------- Theme picker ----------
+  // Injects the clicked theme's CSS into #theme-css, so the active slide
+  // re-themes instantly without a page reload. Persisted per-browser via
+  // localStorage so reloads keep the user's selection.
+  var themeStyleEl = document.getElementById('theme-css');
+  function applyTheme(name) {
+    if (!themes) return;
+    for (var i = 0; i < themes.length; i++) {
+      if (themes[i].name === name) {
+        themeStyleEl.textContent = themes[i].css;
+        state.activeTheme = name;
+        state.themeOverridden = (name !== state.deckTheme);
+        document.documentElement.setAttribute('data-theme', name);
+        try { localStorage.setItem('waxon-theme-override', state.themeOverridden ? name : ''); }
+        catch (e) {}
+        updateBanner();
+        if (openPanel === 'themes') renderThemesPanel();
+        return;
+      }
+    }
+  }
+  function renderThemesPanel() {
+    var body = $('themes-body');
+    if (!themes || themes.length === 0) {
+      body.innerHTML = '<p class="empty">No themes registered.</p>';
+      return;
+    }
+    var html = '';
+    themes.forEach(function(t) {
+      var active = (t.name === state.activeTheme) ? ' active' : '';
+      // Swatch: pull the theme's --slide-bg / --slide-fg / --accent from its
+      // CSS by sniffing the declaration text. Good enough for a preview.
+      function pick(re, fallback) {
+        var m = t.css.match(re);
+        return m ? m[1].trim() : fallback;
+      }
+      var bg = pick(/--slide-bg:\s*([^;]+);/, '#1a1a2e');
+      var fg = pick(/--slide-fg:\s*([^;]+);/, '#e0e0e0');
+      var accent = pick(/--accent:\s*([^;]+);/, '#7c3aed');
+      html += '<div class="theme-item' + active + '" data-theme="' + escapeHTML(t.name) + '" tabindex="0" role="button">' +
+        '<div class="name">' + escapeHTML(t.name) + '</div>' +
+        '<div class="desc">' + escapeHTML(t.description || '') + '</div>' +
+        '<div class="theme-swatch">' +
+          '<span style="background:' + escapeHTML(bg) + ';color:' + escapeHTML(fg) + ';">Aa</span>' +
+          '<span style="background:' + escapeHTML(accent) + ';color:' + escapeHTML(bg) + ';">h1</span>' +
+          '<span style="background:' + escapeHTML(fg) + ';color:' + escapeHTML(bg) + ';">code</span>' +
+        '</div>' +
+      '</div>';
+    });
+    body.innerHTML = html;
+    $$('.theme-item', body).forEach(function(el) {
+      el.addEventListener('click', function() { applyTheme(el.getAttribute('data-theme')); });
+      el.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          applyTheme(el.getAttribute('data-theme'));
+        }
+      });
+    });
+  }
+  function cycleTheme(dir) {
+    if (!themes || themes.length === 0) return;
+    var i = 0;
+    for (var k = 0; k < themes.length; k++) {
+      if (themes[k].name === state.activeTheme) { i = k; break; }
+    }
+    i = (i + dir + themes.length) % themes.length;
+    applyTheme(themes[i].name);
+  }
+  // Restore persisted theme override on load.
+  try {
+    var storedTheme = localStorage.getItem('waxon-theme-override');
+    if (storedTheme) applyTheme(storedTheme);
+  } catch (e) {}
+
+  // ---------- Zoom ----------
+  // Scales the page font-size via --waxon-zoom. Slide content uses em-based
+  // sizing so headings, bullets, and spacing all grow in step.
+  var zoomLevel = 1;
+  try {
+    var storedZoom = parseFloat(localStorage.getItem('waxon-zoom') || '1');
+    if (storedZoom > 0.3 && storedZoom < 4) zoomLevel = storedZoom;
+  } catch (e) {}
+  function applyZoom() {
+    document.documentElement.style.setProperty('--waxon-zoom', String(zoomLevel));
+    try { localStorage.setItem('waxon-zoom', String(zoomLevel)); } catch (e) {}
+  }
+  function zoomIn()    { zoomLevel = Math.min(3, Math.round((zoomLevel + 0.1) * 100) / 100); applyZoom(); flashBanner('Zoom ' + Math.round(zoomLevel * 100) + '%'); }
+  function zoomOut()   { zoomLevel = Math.max(0.5, Math.round((zoomLevel - 0.1) * 100) / 100); applyZoom(); flashBanner('Zoom ' + Math.round(zoomLevel * 100) + '%'); }
+  function zoomReset() { zoomLevel = 1; applyZoom(); flashBanner('Zoom 100%'); }
+  applyZoom();
+
   // ---------- Comment composing lifecycle ----------
   function startComposing() {
     if (commentComposing) return;
@@ -1943,17 +2123,22 @@ html, body {
       case 'v': e.preventDefault(); togglePanel('variants'); return;
       case 'c': e.preventDefault(); togglePanel('comments'); return;
       case 'd': e.preventDefault(); togglePanel('decks'); return;
+      case 't': e.preventDefault(); togglePanel('themes'); return;
+      case 'T': e.preventDefault(); cycleTheme(1); return;
       case 'x': e.preventDefault(); compareMode = !compareMode; render(); return;
       case '[': e.preventDefault(); cycleVariant(-1); return;
       case ']': e.preventDefault(); cycleVariant(1); return;
       case 'n': e.preventDefault(); next(); return;
       case 'p': e.preventDefault(); prev(); return;
+      case '+': case '=': e.preventDefault(); zoomIn(); return;
+      case '-': case '_': e.preventDefault(); zoomOut(); return;
       case 'r':
         e.preventDefault();
         activeVariant = {};
         compareMode = false;
         bannerHidden = false;
         pauseStep = {};
+        zoomReset();
         render();
         return;
       case '?': e.preventDefault(); toggleHelp(); return;

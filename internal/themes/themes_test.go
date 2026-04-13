@@ -10,8 +10,8 @@ import (
 
 func TestAllThemes(t *testing.T) {
 	themes := All()
-	if len(themes) != 20 {
-		t.Errorf("got %d themes, want 20", len(themes))
+	if len(themes) != 21 {
+		t.Errorf("got %d themes, want 21", len(themes))
 	}
 
 	// Verify order
@@ -19,7 +19,7 @@ func TestAllThemes(t *testing.T) {
 		"default", "light", "corporate", "minimal", "vibrant", "terminal",
 		"dracula", "solarized-dark", "solarized-light", "tokyo-night",
 		"catppuccin", "monokai", "one-dark", "github-light", "github-dark",
-		"paper", "neon", "forest", "ocean", "sunset",
+		"paper", "neon", "forest", "ocean", "sunset", "edit-dos",
 	}
 	for i, name := range expected {
 		if themes[i].Name != name {
@@ -90,15 +90,15 @@ func TestGetNonexistent(t *testing.T) {
 
 func TestNames(t *testing.T) {
 	names := Names()
-	if len(names) != 20 {
-		t.Errorf("got %d names, want 20", len(names))
+	if len(names) != 21 {
+		t.Errorf("got %d names, want 21", len(names))
 	}
 
 	expected := []string{
 		"default", "light", "corporate", "minimal", "vibrant", "terminal",
 		"dracula", "solarized-dark", "solarized-light", "tokyo-night",
 		"catppuccin", "monokai", "one-dark", "github-light", "github-dark",
-		"paper", "neon", "forest", "ocean", "sunset",
+		"paper", "neon", "forest", "ocean", "sunset", "edit-dos",
 	}
 	for i, name := range expected {
 		if names[i] != name {

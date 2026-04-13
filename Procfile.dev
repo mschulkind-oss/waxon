@@ -1,1 +1,1 @@
-server: air -- serve example.slides --port ${WK_PORT:-8080} --no-open
+server: air -- serve decks --port ${WK_PORT:-8080} --no-open
