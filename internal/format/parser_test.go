@@ -1096,7 +1096,7 @@ func TestPauseBetweenCards(t *testing.T) {
 	if firstIdx < 0 || pauseIdx < 0 || secondIdx < 0 {
 		t.Fatalf("missing one of first/pause/second in %q", c)
 	}
-	if !(firstIdx < pauseIdx && pauseIdx < secondIdx) {
+	if firstIdx >= pauseIdx || pauseIdx >= secondIdx {
 		t.Errorf("expected first < pause < second; got indices %d/%d/%d",
 			firstIdx, pauseIdx, secondIdx)
 	}
