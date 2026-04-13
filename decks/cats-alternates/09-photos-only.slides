@@ -1,0 +1,64 @@
+---
+title: "Cats: A Photo Essay"
+theme: ocean
+---
+
+<!-- ai: ALTERNATE 09 — photos only. quality: visually rich (in theory), informationally minimal. compared to the main deck, every slide is essentially one image with a one-line caption. exists to test image rendering at full bleed, image scaling across aspect ratios, and the renderer's behavior when most of a slide is non-text. images are pulled from cataas.com which is unauthenticated but may rate-limit — see open question in user-stories.md about local asset policy (story #9, Marcus). -->
+
+# Cats: A Photo Essay
+
+![](https://cataas.com/cat?width=600)
+
+---
+
+# In the morning
+
+![](https://cataas.com/cat/cute?width=600)
+
+---
+
+# Plotting
+
+![](https://cataas.com/cat?width=600&height=400)
+
+---
+
+# Found a sunbeam
+
+![](https://cataas.com/cat?width=600)
+
+---
+
+# Box acquired
+
+![](https://cataas.com/cat?width=600&type=square)
+
+---
+
+# Mid-stretch
+
+![](https://cataas.com/cat?width=600)
+
+---
+
+# Disapproving
+
+![](https://cataas.com/cat?width=600&type=or)
+
+---
+
+# Sleeping
+
+![](https://cataas.com/cat?width=600)
+
+---
+
+# Considering jumping
+
+![](https://cataas.com/cat?width=600&height=400)
+
+---
+
+# Yes
+
+![](https://cataas.com/cat?width=600)

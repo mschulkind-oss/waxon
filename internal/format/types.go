@@ -22,6 +22,7 @@ type Meta struct {
 // Slide represents a single slide in the deck.
 type Slide struct {
 	Index     int        `json:"index"`
+	ID        string     `json:"id,omitempty"`
 	Content   string     `json:"content"`
 	Notes     []string   `json:"notes,omitempty"`
 	AINotes   []string   `json:"ai_notes,omitempty"`
@@ -37,10 +38,17 @@ type Comment struct {
 	Text   string `json:"text"`
 }
 
-// Variant represents an alternate version of a slide.
+// Variant represents an alternate version of a slide. Variants carry their
+// own directives — notes, ai notes, comments, and pause counts — so a
+// reviewer can leave feedback on a specific alternative without affecting
+// the main slide or its siblings.
 type Variant struct {
-	Name    string `json:"name"`
-	Content string `json:"content"`
+	Name     string    `json:"name"`
+	Content  string    `json:"content"`
+	Notes    []string  `json:"notes,omitempty"`
+	AINotes  []string  `json:"ai_notes,omitempty"`
+	Comments []Comment `json:"comments,omitempty"`
+	Pauses   int       `json:"pauses,omitempty"`
 }
 
 // SlideOpts represents per-slide overrides from <!-- slide: ... --> directives.

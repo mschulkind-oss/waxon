@@ -341,6 +341,281 @@ func TestWatchFileChange(t *testing.T) {
 	}
 }
 
+// --- directory-mode tests --------------------------------------------------
+
+func writeDeckTree(t *testing.T) string {
+	t.Helper()
+	dir := t.TempDir()
+	files := map[string]string{
+		"cats.slides": `---
+title: "Cats"
+---
+# Cat slide
+Hello cats.
+`,
+		"dogs.slides": `---
+title: "Dogs"
+---
+# Dog slide
+Hello dogs.
+`,
+		"sub/birds.slides": `---
+title: "Birds"
+---
+# Bird slide
+Hello birds.
+`,
+	}
+	for rel, body := range files {
+		path := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(path, []byte(body), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	return dir
+}
+
+func dirTestServer(t *testing.T) *Server {
+	t.Helper()
+	dir := writeDeckTree(t)
+	s, err := New(Config{
+		File:   dir,
+		Port:   "0",
+		Logger: log.New(io.Discard, "", 0),
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return s
+}
+
+func TestDirectoryModeDiscoversDecks(t *testing.T) {
+	s := dirTestServer(t)
+	if !s.isDir {
+		t.Fatal("server should be in directory mode")
+	}
+	if len(s.decks) != 3 {
+		t.Errorf("got %d decks, want 3", len(s.decks))
+	}
+	if _, ok := s.decks["cats.slides"]; !ok {
+		t.Error("cats.slides not discovered")
+	}
+	if _, ok := s.decks["sub/birds.slides"]; !ok {
+		t.Error("sub/birds.slides not discovered (recursion broken?)")
+	}
+}
+
+func TestDirectoryRootServesIndex(t *testing.T) {
+	s := dirTestServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	body, _ := io.ReadAll(resp.Body)
+	html := string(body)
+	if !strings.Contains(html, "/d/cats.slides") {
+		t.Error("index should link to /d/cats.slides")
+	}
+	if !strings.Contains(html, "/d/dogs.slides") {
+		t.Error("index should link to /d/dogs.slides")
+	}
+	if !strings.Contains(html, "/d/sub/birds.slides") {
+		t.Error("index should link to /d/sub/birds.slides")
+	}
+}
+
+func TestDirectoryDeckRoute(t *testing.T) {
+	s := dirTestServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/d/dogs.slides")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Errorf("status = %d", resp.StatusCode)
+	}
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "Hello dogs.") {
+		t.Error("response should contain dogs deck content")
+	}
+
+	// 404 for unknown deck
+	resp2, err := http.Get(ts.URL + "/d/missing.slides")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp2.Body.Close()
+	if resp2.StatusCode != 404 {
+		t.Errorf("unknown deck status = %d, want 404", resp2.StatusCode)
+	}
+}
+
+func TestDirectoryDecksListAPI(t *testing.T) {
+	s := dirTestServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/api/decks")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+
+	var list []struct {
+		Path  string `json:"path"`
+		Title string `json:"title"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&list); err != nil {
+		t.Fatal(err)
+	}
+	if len(list) != 3 {
+		t.Errorf("got %d decks, want 3", len(list))
+	}
+}
+
+func TestCommentPostAppendsAndReloads(t *testing.T) {
+	s := dirTestServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	body := `{"path":"cats.slides","slide":1,"variant":"","author":"alice","text":"add a hook"}`
+	resp, err := http.Post(ts.URL+"/api/comment", "application/json", strings.NewReader(body))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 200 {
+		out, _ := io.ReadAll(resp.Body)
+		t.Fatalf("status = %d body = %s", resp.StatusCode, out)
+	}
+
+	// File on disk should now contain the directive.
+	rootDir := s.rootDir
+	data, err := os.ReadFile(filepath.Join(rootDir, "cats.slides"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "<!-- comment(@alice): add a hook -->") {
+		t.Errorf("file missing comment directive:\n%s", data)
+	}
+
+	// And the cached deck should be updated.
+	s.mu.RLock()
+	cats := s.decks["cats.slides"]
+	s.mu.RUnlock()
+	if cats == nil || len(cats.deck.Slides[0].Comments) == 0 {
+		t.Error("server cache not refreshed after comment post")
+	}
+}
+
+func TestCommentPostBadInput(t *testing.T) {
+	s := dirTestServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	cases := []struct {
+		name string
+		body string
+		want int
+	}{
+		{"bad json", `not json`, 400},
+		{"slide=0", `{"path":"cats.slides","slide":0,"author":"a","text":"x"}`, 400},
+		{"unknown deck", `{"path":"missing.slides","slide":1,"author":"a","text":"x"}`, 404},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			resp, err := http.Post(ts.URL+"/api/comment", "application/json", strings.NewReader(c.body))
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp.Body.Close()
+			if resp.StatusCode != c.want {
+				t.Errorf("status = %d, want %d", resp.StatusCode, c.want)
+			}
+		})
+	}
+}
+
+func TestScopedWebSocketReload(t *testing.T) {
+	s := dirTestServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	wsBase := "ws" + strings.TrimPrefix(ts.URL, "http") + "/ws"
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Subscribe one client to cats and one to dogs.
+	connCats, _, err := websocket.Dial(ctx, wsBase+"?path=cats.slides", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connCats.Close(websocket.StatusNormalClosure, "")
+	connDogs, _, err := websocket.Dial(ctx, wsBase+"?path=dogs.slides", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer connDogs.Close(websocket.StatusNormalClosure, "")
+
+	// Trigger a reload notification scoped to cats only.
+	time.Sleep(50 * time.Millisecond) // let both subscriptions register
+	s.notifyDeck("cats.slides")
+
+	// Cats should receive "reload"; dogs should NOT (within a short window).
+	readCtx, readCancel := context.WithTimeout(ctx, 2*time.Second)
+	defer readCancel()
+	_, msg, err := connCats.Read(readCtx)
+	if err != nil || string(msg) != "reload" {
+		t.Errorf("cats got msg=%q err=%v", msg, err)
+	}
+
+	dogCtx, dogCancel := context.WithTimeout(ctx, 300*time.Millisecond)
+	defer dogCancel()
+	_, _, err = connDogs.Read(dogCtx)
+	if err == nil {
+		t.Error("dogs client received unexpected reload — scoping broken")
+	}
+}
+
+func TestPathTraversalRejected(t *testing.T) {
+	s := dirTestServer(t)
+	if _, err := s.resolveAbs("../etc/passwd"); err == nil {
+		t.Error("expected path traversal to be rejected")
+	}
+	if _, err := s.resolveAbs("/etc/passwd"); err == nil {
+		t.Error("expected absolute path to be rejected")
+	}
+}
+
+func TestSingleFileModeStillServesRoot(t *testing.T) {
+	// Regression: in single-file mode `/` must serve the deck directly,
+	// not the directory index.
+	s, _ := testServer(t)
+	ts := httptest.NewServer(s.Handler())
+	defer ts.Close()
+
+	resp, err := http.Get(ts.URL + "/")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.Contains(string(body), "Hello world") {
+		t.Error("single-file root should serve the deck content")
+	}
+}
+
 func TestListenAndServe(t *testing.T) {
 	path := writeTestFile(t, testSlides)
 	s, err := New(Config{

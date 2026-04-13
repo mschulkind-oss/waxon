@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/mschulkind-oss/waxon/internal/format"
+	"github.com/mschulkind-oss/waxon/internal/render"
 	_ "github.com/mschulkind-oss/waxon/internal/themes"
 )
 
@@ -149,18 +150,24 @@ func TestPaperSizeEmpty(t *testing.T) {
 	}
 }
 
-func TestInjectPrintCSS(t *testing.T) {
-	html := `<html><head><title>Test</title></head><body></body></html>`
-	result := injectPrintCSS(html)
-
-	if !strings.Contains(result, "page-break-after") {
-		t.Error("missing page-break-after in print CSS")
+func TestStandaloneRender(t *testing.T) {
+	// The exporter no longer post-processes the HTML — it asks the renderer
+	// for a standalone (print-friendly) page directly. This test guards
+	// that contract: the standalone HTML must contain the .deck wrapper
+	// chromedp waits on, must page-break each slide, and must NOT include
+	// the live-reload websocket script.
+	html, err := render.RenderHTML(testDeck(), render.Options{Standalone: true})
+	if err != nil {
+		t.Fatalf("RenderHTML standalone: %v", err)
 	}
-	if !strings.Contains(result, "WebSocket") {
-		t.Error("missing WebSocket disable script")
+	if !strings.Contains(html, `class="deck"`) {
+		t.Error("missing .deck wrapper")
 	}
-	if !strings.Contains(result, "</head>") {
-		t.Error("missing closing head tag")
+	if !strings.Contains(html, "page-break-after") {
+		t.Error("missing page-break-after")
+	}
+	if strings.Contains(html, "new WebSocket") {
+		t.Error("standalone page must not open a websocket")
 	}
 }
 

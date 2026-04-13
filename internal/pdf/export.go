@@ -35,13 +35,11 @@ func Export(ctx context.Context, deck *format.Deck, opts Options) error {
 
 	html, err := render.RenderHTML(deck, render.Options{
 		ThemeOverride: theme,
+		Standalone:    true,
 	})
 	if err != nil {
 		return fmt.Errorf("render HTML: %w", err)
 	}
-
-	// Inject print-specific CSS that shows all slides
-	html = injectPrintCSS(html)
 
 	// Serve HTML on a local ephemeral port
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
@@ -151,37 +149,4 @@ func paperSize(aspect string) (float64, float64) {
 	}
 
 	return width, height
-}
-
-// injectPrintCSS adds CSS that lays out all slides for print (one per page).
-func injectPrintCSS(html string) string {
-	printCSS := `
-<style>
-/* PDF export: show all slides, one per page */
-@media print {
-  .slide { display: flex !important; flex-direction: column; justify-content: center; break-after: page; page-break-after: always; position: relative !important; }
-  .slide.active { display: flex !important; }
-  .footer { position: relative !important; }
-  .progress { display: none !important; }
-}
-/* For PDF rendering: show all slides stacked */
-body { overflow: visible !important; height: auto !important; }
-.deck { height: auto !important; position: relative !important; }
-.slide {
-  display: flex !important;
-  flex-direction: column;
-  justify-content: center;
-  position: relative !important;
-  width: 100vw;
-  height: 100vh;
-  break-after: page;
-  page-break-after: always;
-}
-.progress { display: none !important; }
-</style>
-<!-- WebSocket disabled for PDF export -->
-<script>window.WebSocket = undefined;</script>
-`
-	// Inject before </head>
-	return strings.Replace(html, "</head>", printCSS+"</head>", 1)
 }

@@ -254,20 +254,102 @@ Override theme settings for a single slide:
 This slide has a custom background and centered layout.
 ```
 
+### Inline Color
+
+Wrap any inline text in a palette color without dropping into HTML:
+
+```markdown
+We grew revenue by .green{42%} while cutting churn to .red{1.2%}.
+```
+
+The closed palette is `red`, `green`, `yellow`, `blue`, `aqua`, and `dim`. Unknown names (e.g. `.error{...}`) are left literal so you can still write about CSS classes in prose. Nested spans work: `.red{critical .yellow{warning} issue}`. Inline color is ignored inside backtick code spans and fenced code blocks, so documenting the syntax in code examples is safe.
+
+Each theme tunes the palette to its own background — `dracula` pinks, `monokai` lime, `terminal` catppuccin frost, etc. — so `.red{...}` always looks right for the deck you're in.
+
+### Full-Line Color
+
+Prefix a line with `.color ` to color the entire line:
+
+```markdown
+.red This whole line is a failure state.
+.green All systems nominal.
+```
+
+Must be at the start of the line (no leading whitespace, no preceding text), must use a palette class, and must be followed by a space. Inside a fenced code block it's inert.
+
+### Side-by-Side Compare Layouts
+
+Put two content panes next to each other using a `:::compare` fence:
+
+```markdown
+:::compare
+::left red
+# Before
+
+- Manual deploys
+- 2-week release cycles
+- On-call pages at 3am
+::right green
+# After
+
+- Continuous delivery
+- Ship on every merge
+- Sleep through the night
+:::
+```
+
+The color after `::left` / `::right` is a palette class that tints the pane border — handy for before/after, good/bad, old/new comparisons. The color is optional. Panes stack vertically on narrow screens automatically.
+
+### Slide IDs
+
+Give a slide a stable, URL-addressable name by appending `#name` to its separator:
+
+```markdown
+# Intro
+
+The opening slide.
+
+--- #pricing
+
+# Pricing
+
+$29/mo.
+
+--- #call-to-action
+
+# Sign Up
+```
+
+Then link directly: `http://localhost:8080/d/deck.slides#pricing`. IDs survive reordering — unlike `#3` which shifts when you add a slide above it. An ID can contain letters, digits, hyphens, and underscores. A bare `---` (no ID) still works exactly as before.
+
 ---
 
 ## Themes
 
 ### Built-in Themes
 
-| Theme        | Description                                                   |
-|--------------|---------------------------------------------------------------|
-| `default`    | Clean, minimal dark theme with good contrast                  |
-| `light`      | Bright background, dark text, professional look               |
-| `corporate`  | Conservative palette, suitable for business presentations     |
-| `minimal`    | Maximum whitespace, typography-focused, no distractions       |
-| `vibrant`    | Bold colors and gradients for creative talks                  |
-| `terminal`   | Authentic TUI aesthetic powered by [WebTUI](https://webtui.ironclad.sh/) |
+| Theme              | Description                                                   |
+|--------------------|---------------------------------------------------------------|
+| `default`          | Clean, minimal dark theme with good contrast                  |
+| `light`            | Bright background, dark text, professional look               |
+| `corporate`        | Conservative palette, suitable for business presentations     |
+| `minimal`          | Maximum whitespace, typography-focused, no distractions       |
+| `vibrant`          | Bold colors and gradients for creative talks                  |
+| `terminal`         | Authentic TUI aesthetic powered by [WebTUI](https://webtui.ironclad.sh/) |
+| `dracula`          | Iconic purple-on-dark with pink accents                       |
+| `solarized-dark`   | Solarized palette tuned for low-light reading                 |
+| `solarized-light`  | Solarized palette in daylight mode                            |
+| `tokyo-night`      | Tokyo Night colors — deep blues and electric accents          |
+| `catppuccin`       | Catppuccin Mocha — soothing pastel dark theme                 |
+| `monokai`          | Classic Monokai with its signature green and pink             |
+| `one-dark`         | Atom One Dark — calm slate with cool highlights               |
+| `github-light`     | GitHub's light theme — familiar, readable, neutral            |
+| `github-dark`      | GitHub's dark theme — high-contrast, work-ready               |
+| `paper`            | Newsprint aesthetic — serif type on warm off-white            |
+| `neon`             | Cyberpunk neon glow on near-black                             |
+| `forest`           | Mossy greens and bark browns for an outdoors feel             |
+| `ocean`            | Deep teals and seafoam for a calm aquatic palette             |
+| `sunset`           | Warm orange-to-violet gradient backdrop                       |
 
 ### The Terminal Theme
 

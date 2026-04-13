@@ -298,6 +298,82 @@ Bold opening.
 	}
 }
 
+func TestParseVariantDirectives(t *testing.T) {
+	// Each variant body carries its own notes/comments/ai-notes/pauses so
+	// reviewers can leave feedback on a specific alternative without
+	// affecting the main slide or its siblings.
+	input := `---
+title: "Variant Directives"
+---
+
+# Original
+Main body.
+<!-- comment(@alice): main needs a hook -->
+
+---variant: short
+# Short
+<!-- pause -->
+Just one line.
+<!-- comment(@bob): love this version -->
+<!-- ai: shorter form for time-pressed audiences -->
+
+---variant: long
+# Long
+<!-- note: read this slowly -->
+Lots of detail.
+<!-- comment(@bob): too dense, cut it -->
+`
+	deck, err := Parse(input)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(deck.Slides) != 1 {
+		t.Fatalf("got %d slides, want 1", len(deck.Slides))
+	}
+	s := deck.Slides[0]
+	if len(s.Comments) != 1 || s.Comments[0].Author != "alice" {
+		t.Errorf("main comments = %+v", s.Comments)
+	}
+	if len(s.Variants) != 2 {
+		t.Fatalf("got %d variants, want 2", len(s.Variants))
+	}
+
+	// short variant
+	short := s.Variants[0]
+	if short.Name != "short" {
+		t.Errorf("variants[0].name = %q", short.Name)
+	}
+	if short.Pauses != 1 {
+		t.Errorf("short variant pauses = %d, want 1", short.Pauses)
+	}
+	if len(short.Comments) != 1 || short.Comments[0].Author != "bob" {
+		t.Errorf("short variant comments = %+v", short.Comments)
+	}
+	if len(short.AINotes) != 1 {
+		t.Errorf("short variant aiNotes = %+v", short.AINotes)
+	}
+	if contains(short.Content, "comment(@bob)") {
+		t.Error("variant content should be cleaned of directives")
+	}
+
+	// long variant
+	long := s.Variants[1]
+	if len(long.Notes) != 1 {
+		t.Errorf("long variant notes = %+v", long.Notes)
+	}
+	if len(long.Comments) != 1 || long.Comments[0].Text != "too dense, cut it" {
+		t.Errorf("long variant comments = %+v", long.Comments)
+	}
+
+	// Confirm comments are scoped — bob's comments did NOT leak into the
+	// main slide body.
+	for _, c := range s.Comments {
+		if c.Author == "bob" {
+			t.Error("variant comment leaked into main slide")
+		}
+	}
+}
+
 func TestParseAllDirectives(t *testing.T) {
 	input := `---
 title: "Everything"
@@ -431,6 +507,318 @@ func TestParseSlideOptsInvalidPair(t *testing.T) {
 	opts := parseSlideOpts("noequals")
 	if opts != nil {
 		t.Error("expected nil for invalid pair")
+	}
+}
+
+// ---------- Slide IDs ----------
+
+func TestParseSlideIDSeparator(t *testing.T) {
+	input := `---
+title: "IDs"
+---
+
+# First
+
+Content.
+
+--- #intro
+
+# Intro
+
+Hello.
+
+--- #call-to-action
+
+# CTA
+
+Sign up now.
+`
+	deck, err := Parse(input)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(deck.Slides) != 3 {
+		t.Fatalf("got %d slides, want 3", len(deck.Slides))
+	}
+	if deck.Slides[0].ID != "" {
+		t.Errorf("first slide ID = %q, want empty", deck.Slides[0].ID)
+	}
+	if deck.Slides[1].ID != "intro" {
+		t.Errorf("slide[1].ID = %q, want intro", deck.Slides[1].ID)
+	}
+	if deck.Slides[2].ID != "call-to-action" {
+		t.Errorf("slide[2].ID = %q, want call-to-action", deck.Slides[2].ID)
+	}
+}
+
+func TestParseSlideIDWithDigitsAndHyphens(t *testing.T) {
+	input := `---
+title: "T"
+---
+
+# First
+
+--- #step-2a
+
+# Step 2a
+
+--- #final_step
+
+# Final
+`
+	deck, err := Parse(input)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(deck.Slides) != 3 {
+		t.Fatalf("got %d slides, want 3", len(deck.Slides))
+	}
+	if deck.Slides[1].ID != "step-2a" {
+		t.Errorf("slide[1].ID = %q", deck.Slides[1].ID)
+	}
+	if deck.Slides[2].ID != "final_step" {
+		t.Errorf("slide[2].ID = %q", deck.Slides[2].ID)
+	}
+}
+
+func TestParseBareSeparatorStillWorks(t *testing.T) {
+	input := `---
+title: "T"
+---
+
+# A
+
+---
+
+# B
+`
+	deck, err := Parse(input)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(deck.Slides) != 2 {
+		t.Fatalf("got %d slides", len(deck.Slides))
+	}
+	for _, s := range deck.Slides {
+		if s.ID != "" {
+			t.Errorf("slide %d unexpectedly got ID %q", s.Index, s.ID)
+		}
+	}
+}
+
+// ---------- Inline color ----------
+
+func TestInlineColorSimple(t *testing.T) {
+	out := applyInlineColor(`alpha .red{bravo} charlie`)
+	want := `alpha <span class="red">bravo</span> charlie`
+	if out != want {
+		t.Errorf("got %q\nwant %q", out, want)
+	}
+}
+
+func TestInlineColorAdjacent(t *testing.T) {
+	out := applyInlineColor(`.red{a}.blue{b}`)
+	want := `<span class="red">a</span><span class="blue">b</span>`
+	if out != want {
+		t.Errorf("got %q\nwant %q", out, want)
+	}
+}
+
+func TestInlineColorNested(t *testing.T) {
+	out := applyInlineColor(`.red{.blue{inner}}`)
+	want := `<span class="red"><span class="blue">inner</span></span>`
+	if out != want {
+		t.Errorf("got %q\nwant %q", out, want)
+	}
+}
+
+func TestInlineColorNestedBraces(t *testing.T) {
+	// Curly braces inside the payload should not prematurely close the span.
+	out := applyInlineColor(`.red{foo {bar} baz}`)
+	want := `<span class="red">foo {bar} baz</span>`
+	if out != want {
+		t.Errorf("got %q\nwant %q", out, want)
+	}
+}
+
+func TestInlineColorUnbalanced(t *testing.T) {
+	in := `.red{unclosed`
+	out := applyInlineColor(in)
+	if out != in {
+		t.Errorf("unbalanced inline color should remain literal; got %q", out)
+	}
+}
+
+func TestInlineColorUnknownPalette(t *testing.T) {
+	in := `.error{oops}`
+	out := applyInlineColor(in)
+	if out != in {
+		t.Errorf("unknown palette class should remain literal; got %q", out)
+	}
+}
+
+func TestInlineColorAllPalette(t *testing.T) {
+	for _, class := range []string{"red", "green", "yellow", "blue", "aqua", "dim"} {
+		in := "." + class + "{x}"
+		want := `<span class="` + class + `">x</span>`
+		if got := applyInlineColor(in); got != want {
+			t.Errorf("class %q: got %q, want %q", class, got, want)
+		}
+	}
+}
+
+func TestInlineColorInsideFencedCode(t *testing.T) {
+	input := "before .red{hit}\n\n```\n.red{miss}\n```\n\nafter .blue{hit2}"
+	out := applyColorTransforms(input)
+	if !contains(out, `<span class="red">hit</span>`) {
+		t.Error("should transform outside fence")
+	}
+	if contains(out, `<span class="red">miss</span>`) {
+		t.Error("should not transform inside fenced code block")
+	}
+	if !contains(out, `<span class="blue">hit2</span>`) {
+		t.Error("should resume transforming after fence close")
+	}
+}
+
+func TestInlineColorInsideBacktickSpan(t *testing.T) {
+	input := "see `.red{untouched}` vs .green{touched}"
+	out := applyColorTransforms(input)
+	if !contains(out, "`.red{untouched}`") {
+		t.Errorf("backtick code span should be preserved, got %q", out)
+	}
+	if !contains(out, `<span class="green">touched</span>`) {
+		t.Errorf("outside backticks should transform, got %q", out)
+	}
+}
+
+// ---------- Line-level color ----------
+
+func TestLineColorStartOfLine(t *testing.T) {
+	input := ".red This whole line is red"
+	out := applyColorTransforms(input)
+	want := `<span class="red">This whole line is red</span>`
+	if out != want {
+		t.Errorf("got %q\nwant %q", out, want)
+	}
+}
+
+func TestLineColorNotMidLine(t *testing.T) {
+	input := "prefix .red not at start"
+	out := applyColorTransforms(input)
+	if out != input {
+		t.Errorf("mid-line .red should not wrap; got %q", out)
+	}
+}
+
+func TestLineColorNotInsideFence(t *testing.T) {
+	input := "outside\n```\n.red inside\n```\n.red after"
+	out := applyColorTransforms(input)
+	if contains(out, `<span class="red">inside</span>`) {
+		t.Error("line color should not fire inside fenced code")
+	}
+	if !contains(out, `<span class="red">after</span>`) {
+		t.Errorf("line color should fire after fence, got %q", out)
+	}
+}
+
+func TestLineColorUnknownPalette(t *testing.T) {
+	input := ".error something"
+	out := applyColorTransforms(input)
+	if out != input {
+		t.Errorf("unknown palette should be literal; got %q", out)
+	}
+}
+
+// ---------- Compare fence blocks ----------
+
+func TestCompareHappyPath(t *testing.T) {
+	input := `:::compare
+::left red
+Left body
+::right green
+Right body
+:::`
+	out := applyCompareBlocks(input)
+	if !contains(out, `<div class="waxon-compare">`) {
+		t.Error("missing waxon-compare wrapper")
+	}
+	if !contains(out, `<div class="waxon-compare-pane waxon-compare-left red">`) {
+		t.Errorf("missing left pane with red class, got %q", out)
+	}
+	if !contains(out, `<div class="waxon-compare-pane waxon-compare-right green">`) {
+		t.Errorf("missing right pane with green class, got %q", out)
+	}
+	if !contains(out, "Left body") || !contains(out, "Right body") {
+		t.Errorf("bodies missing, got %q", out)
+	}
+}
+
+func TestCompareWithoutPaneColors(t *testing.T) {
+	input := `:::compare
+::left
+A
+::right
+B
+:::`
+	out := applyCompareBlocks(input)
+	if !contains(out, `<div class="waxon-compare-pane waxon-compare-left">`) {
+		t.Errorf("left pane without color should have no palette class, got %q", out)
+	}
+}
+
+func TestCompareUnterminated(t *testing.T) {
+	input := `:::compare
+::left
+unfinished`
+	out := applyCompareBlocks(input)
+	if !contains(out, `waxon-error`) {
+		t.Errorf("unterminated compare should emit error banner, got %q", out)
+	}
+}
+
+func TestCompareNested(t *testing.T) {
+	input := `:::compare
+::left
+A
+:::compare
+::right
+B
+:::`
+	out := applyCompareBlocks(input)
+	if !contains(out, `waxon-error`) {
+		t.Errorf("nested compare should emit error, got %q", out)
+	}
+}
+
+func TestCompareEndToEnd(t *testing.T) {
+	// Verify the full parser pipeline threads compare + color together.
+	input := `---
+title: "E2E"
+---
+
+# Slide
+
+:::compare
+::left red
+.yellow{warn}
+::right green
+ok
+:::
+`
+	deck, err := Parse(input)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(deck.Slides) != 1 {
+		t.Fatalf("got %d slides", len(deck.Slides))
+	}
+	c := deck.Slides[0].Content
+	if !contains(c, `<div class="waxon-compare">`) {
+		t.Errorf("missing waxon-compare, got %q", c)
+	}
+	if !contains(c, `<span class="yellow">warn</span>`) {
+		t.Errorf("color transforms should run inside compare pane, got %q", c)
 	}
 }
 

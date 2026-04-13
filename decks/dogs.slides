@@ -1,0 +1,215 @@
+---
+title: "Dogs: A Field Guide to Humanity's Best Friend"
+author: "The Dog Defense Committee"
+date: "2026-04-12"
+theme: tokyo-night
+aspect: "16:9"
+footer: "decks/dogs.slides — companion deck to cats.slides"
+---
+
+# Dogs
+
+## A Field Guide to Humanity's Best Friend
+
+The Dog Defense Committee · 2026
+
+<!-- note: Open by asking how many people grew up with a dog. The hands tell you what kind of audience you have — childhood-dog people will let you get away with sentimentality, dog-skeptics need the science up front. -->
+<!-- ai: title slide. mirrors cats.slides:1 deliberately so the two decks can be compared side-by-side via waxon's compare mode. when adding new front-matter fields, update both decks together. -->
+<!-- ai: this is the canonical dogs deck. it exists alongside cats.slides as a fixture for the multi-deck server, deck-switcher panel, and cross-deck comparison feature. -->
+
+---
+
+# Why Dogs Are Awesome
+
+A non-exhaustive case for the defense.
+
+- **Co-evolved.** ~30,000 years sharing fires with humans. Older than agriculture.
+<!-- pause -->
+- **Trainable.** A border collie can learn 1,000+ word labels (Chaser, Wofford 2011).
+<!-- pause -->
+- **Social glue.** Dog walks generate more spontaneous conversations between strangers than any other public activity studied.
+<!-- pause -->
+- **Working partner.** Search and rescue, herding, detection, therapy, guide work — there is no other animal we delegate this much responsibility to.
+<!-- pause -->
+- **Joy specialist.** No other species is this committed to being delighted that you came home.
+
+<!-- note: Don't rush these. The "joy specialist" line is the laugh line — pause for it. -->
+<!-- ai: progressive reveals deliberately mirror cats.slides slide 2 so a side-by-side comparison shows the structural symmetry. -->
+
+---
+
+# Dog Anatomy 101
+
+```
+                  ╭─── ear (some breeds: 18 muscles each)
+                 │
+        ╭────────●────────╮
+       ╱      ◉    ◉      ╲
+      │  ___           ___ │   ← ~300 million olfactory receptors
+      │ /              \  │     (humans: ~6 million)
+       ╲       ▼        ╱
+         ╲___________╱
+            │     │
+            │ woof│         ← larynx (variable pitch by breed)
+            │     │
+           ╱╲     ╱╲
+          ╱  ╲___╱  ╲       ← spine (typically 30 vertebrae,
+         │           │       cats win on flexibility)
+          ╲_________╱
+            │ │ │ │
+           ╱ │ │ │ ╲        ← non-retractable claws (key trait!)
+```
+
+<!-- note: The 300M olfactory receptors number is the one to lean on. People underestimate dog noses by orders of magnitude. -->
+<!-- ai: ASCII diagram intentionally parallels cats.slides:3. Tests code-block rendering in the second deck of the multi-deck demo. -->
+
+---
+
+# The Bark
+
+A vocal repertoire shaped by living with humans.
+
+<!-- pause -->
+
+- Frequency range: **subwoofer to small-dog-stress (50–2000 Hz)**
+<!-- pause -->
+- Adult dogs bark in contexts adult wolves rarely do — domestication selected for vocal communication with us
+<!-- pause -->
+- A bark is **a whole sentence**: pitch carries identity, tempo carries urgency, repetition carries persistence
+
+<!-- note: Compare to cats: cats invented the meow specifically for humans. Dogs already vocalized; domestication tuned the frequency. Both species adjusted their voices for us. -->
+<!-- comment(@reviewer): cite Yin & McCowan 2004 for the "barks carry identity" claim. -->
+<!-- ai: comment intentionally left here to test the comments panel + per-deck filtering. The Yin & McCowan paper is real but the rest of the slide is talk-grade summary. -->
+
+---
+
+# Hunting Prowess
+
+How dogs stack up against the rest of the predator world.
+
+| Predator        | Success Rate | Notes                          |
+|-----------------|--------------|--------------------------------|
+| Lion            | ~25%         | Group hunters                  |
+| Wolf            | ~14%         | Stamina pursuit                |
+| **Wolf pack**   | **~38%**     | **Cooperation pays off**       |
+| African wild dog| ~67%         | Highest of any large predator  |
+| House cat       | ~32%         | (for comparison)               |
+| Domestic dog    | varies       | Bred away from solo predation  |
+
+<!-- note: The African wild dog number is the surprise. Most people guess lion. Lean into the cooperation angle — it's why packs win. -->
+<!-- ai: parallel structure with cats.slides slide 5. notice that the cat deck claims house cat = 32%; this deck lists cats for comparison. The two decks should agree on shared facts — if you change cats.slides, double-check this slide. -->
+
+---
+
+# A Brief History
+
+```
+33,000 BCE ─── Earliest evidence of wolf-human cohabitation
+                          │
+14,000 BCE ─── Bonn-Oberkassel dog burial (oldest grave)
+                          │
+4,000 BCE  ─── Sled dogs in Siberia
+                          │
+500 BCE    ─── First written breed descriptions (China)
+                          │
+1873 CE    ─── The Kennel Club founded, London
+                          │
+1944 CE    ─── First search-and-rescue dog program
+                          │
+2010s CE   ─── "Doggo" supplants "puppers" in internet vernacular
+                          │
+2026 CE    ─── waxon ships a dog-themed companion deck
+                          ▼
+                       (you are here)
+```
+
+<!-- note: The Bonn-Oberkassel grave is the moment to hold for. People being buried with dogs 14,000 years ago is the strongest evidence we have for the depth of the relationship. -->
+<!-- ai: vertical timeline mirrors cats.slides:6. Same "(you are here)" punchline — keeps the symmetry between the two decks. -->
+
+---
+
+# Dog Communication
+
+Dogs use a multi-channel vocabulary humans only partially decode.
+
+<!-- pause -->
+
+| Signal       | Meaning                          | Audience       |
+|--------------|----------------------------------|----------------|
+| Bark         | Many things — depends on context | Humans + dogs  |
+| Tail wag (R) | Generally positive (right-bias)  | Humans + dogs  |
+| Tail wag (L) | Generally cautious (left-bias)   | Humans + dogs  |
+| Play bow     | "What follows is play"           | Other dogs     |
+| Whale eye    | "I'm uncomfortable, back off"    | Anyone close   |
+| Yawn         | Stress (NOT sleepiness here)     | Humans         |
+
+<!-- pause -->
+
+> Tail wag asymmetry is real and replicable: dogs wag more to the right when seeing their owner, more to the left when seeing an unfamiliar dominant dog (Quaranta et al. 2007).
+
+<!-- note: The tail asymmetry slide always gets a "wait, really?" reaction. Make sure the blockquote stays on screen long enough to read. -->
+
+---
+
+# Dog Photography
+
+A representative sample.
+
+![A dog](https://place.dog/400/300)
+
+<!-- ai: parallels cats.slides:8 which uses cataas.com. This deck uses place.dog for the same testing purpose: verifying that the renderer handles network-fetched images. when testing offline, replace with a local file in decks/assets/. -->
+<!-- comment(@maya): same complaint as on the cats deck — local fallback for offline presenters please. -->
+
+---
+
+# The Math of Loyalty
+
+A toy model.
+
+```
+loyalty = (years_known × shared_meals) / interruptions²
+```
+
+<!-- pause -->
+
+Where:
+
+- `years_known` accumulates linearly
+- `shared_meals` includes any food the dog watched you eat
+- `interruptions` is the only term you can hurt — unexpected boarding, long absences, schedule chaos
+
+<!-- pause -->
+
+> The denominator is squared because dogs feel disruption more sharply than absence. A predictable life with less time together beats a chaotic life with more.
+
+---variant: loyalty-equation-tighter
+# The Loyalty Equation
+
+```
+loyalty = (time × meals) / chaos²
+```
+
+Three terms. The denominator is the one to manage.
+
+---variant: loyalty-equation-no-math
+# Why Routine Matters
+
+Dogs love you proportional to the time you've shared. They worry proportional to how unpredictable you are. Routine is how you maximize one and minimize the other.
+
+<!-- ai: 2 variants on slide 9, mirroring cats.slides:9 (which has 2 variants on the cuteness equation). The "tighter" variant compresses the math; the "no-math" variant drops the equation entirely. test variant switching + side-by-side compare here, and verify the cross-deck UI shows BOTH cats:9 and dogs:9 variants when navigating with the deck switcher. -->
+
+---
+
+# Adopt, Don't Shop
+
+Three things to do this week.
+
+- **Volunteer at a local shelter.** Even a few hours of socialization makes shelter dogs more adoptable.
+<!-- pause -->
+- **Foster, don't buy.** Foster networks save more lives per dollar than any other welfare intervention.
+<!-- pause -->
+- **Spay, neuter, microchip.** The single most effective dog welfare intervention at population scale.
+
+<!-- note: End slow. The shelter call-to-action is the closing — let it land. Don't rush to "thank you." -->
+<!-- ai: closing slide mirrors cats.slides:10. Both decks open with "why X is great" and close with "here's what you can do about it" — deliberate symmetry so the multi-deck comparison feature has something meaningful to show. -->
+<!-- comment(@dog-defense-committee): approved for distribution. -->

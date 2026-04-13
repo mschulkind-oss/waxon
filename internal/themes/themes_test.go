@@ -10,12 +10,17 @@ import (
 
 func TestAllThemes(t *testing.T) {
 	themes := All()
-	if len(themes) != 6 {
-		t.Errorf("got %d themes, want 6", len(themes))
+	if len(themes) != 20 {
+		t.Errorf("got %d themes, want 20", len(themes))
 	}
 
 	// Verify order
-	expected := []string{"default", "light", "corporate", "minimal", "vibrant", "terminal"}
+	expected := []string{
+		"default", "light", "corporate", "minimal", "vibrant", "terminal",
+		"dracula", "solarized-dark", "solarized-light", "tokyo-night",
+		"catppuccin", "monokai", "one-dark", "github-light", "github-dark",
+		"paper", "neon", "forest", "ocean", "sunset",
+	}
 	for i, name := range expected {
 		if themes[i].Name != name {
 			t.Errorf("themes[%d].Name = %q, want %q", i, themes[i].Name, name)
@@ -45,6 +50,25 @@ func TestAllThemesHaveRequiredCSSVars(t *testing.T) {
 	}
 }
 
+func TestAllThemesDefinePalette(t *testing.T) {
+	// Every theme must define the full palette of --color-* variables
+	// so inline color syntax renders correctly against its background.
+	paletteVars := []string{
+		"--color-red",
+		"--color-green",
+		"--color-yellow",
+		"--color-blue",
+		"--color-aqua",
+	}
+	for _, theme := range All() {
+		for _, v := range paletteVars {
+			if !strings.Contains(theme.CSS, v) {
+				t.Errorf("theme %q missing palette variable %s", theme.Name, v)
+			}
+		}
+	}
+}
+
 func TestGetExisting(t *testing.T) {
 	for _, name := range Names() {
 		theme := Get(name)
@@ -66,11 +90,16 @@ func TestGetNonexistent(t *testing.T) {
 
 func TestNames(t *testing.T) {
 	names := Names()
-	if len(names) != 6 {
-		t.Errorf("got %d names, want 6", len(names))
+	if len(names) != 20 {
+		t.Errorf("got %d names, want 20", len(names))
 	}
 
-	expected := []string{"default", "light", "corporate", "minimal", "vibrant", "terminal"}
+	expected := []string{
+		"default", "light", "corporate", "minimal", "vibrant", "terminal",
+		"dracula", "solarized-dark", "solarized-light", "tokyo-night",
+		"catppuccin", "monokai", "one-dark", "github-light", "github-dark",
+		"paper", "neon", "forest", "ocean", "sunset",
+	}
 	for i, name := range expected {
 		if names[i] != name {
 			t.Errorf("names[%d] = %q, want %q", i, names[i], name)

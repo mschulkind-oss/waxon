@@ -59,14 +59,15 @@ func TestRenderHTMLSlideContent(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// Check slide content is rendered as HTML
-	if !strings.Contains(html, "<h1") {
-		t.Error("missing h1 from markdown")
+	// Slide HTML is delivered via JSON inside a <script> tag, so the
+	// html/template JS-context escaper rewrites < and > as \u003c / \u003e.
+	if !strings.Contains(html, `\u003ch1`) {
+		t.Error("missing h1 from markdown JSON payload")
 	}
 	if !strings.Contains(html, "Welcome to the test.") {
 		t.Error("missing paragraph text")
 	}
-	if !strings.Contains(html, "<li>Point one</li>") {
+	if !strings.Contains(html, `\u003cli\u003ePoint one\u003c/li\u003e`) {
 		t.Error("missing list item")
 	}
 }
@@ -244,33 +245,122 @@ func TestRenderHTMLEmptyDeck(t *testing.T) {
 	}
 }
 
-func TestCollectNotes(t *testing.T) {
-	slides := []format.Slide{
-		{Notes: []string{"note 1", "note 2"}},
-		{Notes: nil},
-		{Notes: []string{"note 3"}},
-	}
-	notes := collectNotes(slides)
-	if len(notes) != 3 {
-		t.Fatalf("got %d note sets, want 3", len(notes))
-	}
-	if len(notes[0]) != 2 {
-		t.Errorf("notes[0] has %d entries", len(notes[0]))
-	}
-	if len(notes[1]) != 0 {
-		t.Errorf("notes[1] should be empty, got %d", len(notes[1]))
-	}
-}
-
-func TestRenderHTMLActiveSlide(t *testing.T) {
+func TestRenderHTMLDeckJSON(t *testing.T) {
 	deck := testDeck()
 	html, err := RenderHTML(deck, Options{})
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
+	// Slides are delivered via inline JSON to the browser.
+	if !strings.Contains(html, `"index":0`) {
+		t.Error("deck JSON not embedded")
+	}
+	if !strings.Contains(html, "Speaker note") {
+		t.Error("notes should appear in JSON")
+	}
+}
 
-	// First slide should have active class
-	if !strings.Contains(html, `class="slide active"`) {
-		t.Error("first slide should be active")
+func TestRenderHTMLBannerThemeOverride(t *testing.T) {
+	deck := testDeck()
+	html, err := RenderHTML(deck, Options{ThemeOverride: "vibrant"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, `"themeOverridden":true`) {
+		t.Error("theme-override flag not set in state JSON")
+	}
+}
+
+func TestRenderHTMLVariantsInJSON(t *testing.T) {
+	deck := testDeck()
+	deck.Slides[0].Variants = []format.Variant{
+		{Name: "alt", Content: "# Alt\n\nDifferent."},
+	}
+	html, err := RenderHTML(deck, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, `"name":"alt"`) {
+		t.Error("variant name missing from JSON")
+	}
+}
+
+func TestRenderHTMLDecksList(t *testing.T) {
+	deck := testDeck()
+	html, err := RenderHTML(deck, Options{
+		DeckPath: "cats.slides",
+		Decks: []DeckSummary{
+			{Path: "cats.slides", Title: "Cats"},
+			{Path: "dogs.slides", Title: "Dogs"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, `"path":"dogs.slides"`) {
+		t.Error("deck switcher list missing")
+	}
+	if !strings.Contains(html, `"path":"cats.slides"`) {
+		t.Error("current deck path missing")
+	}
+}
+
+func TestRenderHTMLPaletteCSS(t *testing.T) {
+	deck := testDeck()
+	html, err := RenderHTML(deck, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, class := range []string{".red", ".green", ".yellow", ".blue", ".aqua", ".dim"} {
+		if !strings.Contains(html, ".slide "+class) {
+			t.Errorf("missing palette class %q in base CSS", class)
+		}
+	}
+	for _, v := range []string{"--color-red", "--color-green", "--color-yellow", "--color-blue", "--color-aqua"} {
+		if !strings.Contains(html, v) {
+			t.Errorf("missing CSS custom property %q", v)
+		}
+	}
+}
+
+func TestRenderHTMLCompareCSS(t *testing.T) {
+	deck := testDeck()
+	html, err := RenderHTML(deck, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, ".waxon-compare") {
+		t.Error("missing .waxon-compare base CSS")
+	}
+	if !strings.Contains(html, ".waxon-compare-pane") {
+		t.Error("missing .waxon-compare-pane base CSS")
+	}
+}
+
+func TestRenderHTMLSlideIDInJSON(t *testing.T) {
+	deck := testDeck()
+	deck.Slides[0].ID = "intro"
+	html, err := RenderHTML(deck, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, `"id":"intro"`) {
+		t.Error("slide ID missing from JSON payload")
+	}
+}
+
+func TestRenderIndex(t *testing.T) {
+	html, err := RenderIndex([]DeckSummary{
+		{Path: "cats.slides", Title: "Cats"},
+		{Path: "dogs.slides", Title: "Dogs"},
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, "/d/cats.slides") {
+		t.Error("missing cats link")
+	}
+	if !strings.Contains(html, "/d/dogs.slides") {
+		t.Error("missing dogs link")
 	}
 }

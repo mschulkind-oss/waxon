@@ -1,0 +1,140 @@
+---
+title: "Waxon Format Reference"
+author: "waxon"
+theme: terminal
+aspect: "16:9"
+footer: "format reference — one slide per feature"
+---
+
+# Format Reference
+
+A runnable tour of every waxon syntax extension.
+
+<!-- note: Each slide that follows demonstrates one feature. Serve this deck to see it rendered. -->
+
+--- #inline-color
+
+# Inline Color
+
+We grew revenue by .green{42%} while cutting churn to .red{1.2%}.
+
+The .yellow{warning} signals bubble up through .blue{auth} and .aqua{cache} layers.
+
+Nested works: .red{critical .yellow{warning} issue}.
+
+Unknown classes like `.error{foo}` stay literal.
+
+<!-- ai: Palette is red / green / yellow / blue / aqua / dim — closed set -->
+
+--- #line-color
+
+# Full-Line Color
+
+.red This entire line is a failure state.
+
+.green All systems nominal.
+
+.yellow Slow query detected — investigating.
+
+.blue Cache hit ratio: 94%.
+
+Line color only fires at the start of an unindented line followed by a space.
+
+--- #compare-before-after
+
+# Compare — Before & After
+
+:::compare
+::left red
+## Before
+
+- Manual deploys on Fridays
+- 2-week release cycles
+- Pages at 3am
+::right green
+## After
+
+- Continuous delivery
+- Ship on every merge
+- Sleep through the night
+:::
+
+<!-- note: `:::compare` wraps two panes. Palette class on ::left/::right tints the border. -->
+
+--- #compare-plain
+
+# Compare — No Color
+
+:::compare
+::left
+**Option A**
+
+Stick with Postgres. Familiar, battle-tested, scales.
+::right
+**Option B**
+
+Switch to a column store. Faster analytics, new ops burden.
+:::
+
+Panes without a palette class keep the theme's default border.
+
+--- #slide-ids
+
+# Slide IDs
+
+This slide is addressable as `#slide-ids` — try appending it to the URL.
+
+IDs survive slide reordering, unlike numeric anchors that shift when you insert content above.
+
+Syntax: put `--- #some-id` on the separator **above** the slide you want to name.
+
+--- #pauses
+
+# Progressive Reveal
+
+Pauses split the slide into click-advanced sections.
+
+<!-- pause -->
+
+- First bullet appears on initial render.
+<!-- pause -->
+- Second bullet appears on next click.
+<!-- pause -->
+- Third bullet appears after that.
+
+<!-- note: Press right arrow or space to advance through pauses. -->
+
+--- #variants
+
+# Variants
+
+The standard version of the slide.
+
+---variant: punchy
+# Variants — Punchy
+
+A shorter, more aggressive version of the same slide. Agents can propose alternatives without overwriting your work.
+
+---variant: data-heavy
+# Variants — Data-Heavy
+
+A version backed by numbers. Toggle variants in the presenter UI or pick one at export with `--variant`.
+
+--- #comments
+
+# Comments & Notes
+
+Content that stays in the file but off the rendered slide.
+
+<!-- note: Speaker notes show in presenter mode — for what you say out loud. -->
+<!-- ai: AI notes carry agent context — rationale, constraints, instructions for the next session. -->
+<!-- comment(@alice): Review comments attribute an author and survive version control. -->
+<!-- comment(@agent): Agents can reply in the same channel. -->
+
+--- #closing
+
+# One File, Every Feature
+
+.aqua{Inline color}, full-line color, compare panes, slide IDs, pauses, variants, notes, ai notes, and comments — all in plain text.
+
+Agents author it. Humans review it. Git diffs it. PDFs export it.

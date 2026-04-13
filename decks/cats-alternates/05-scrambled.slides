@@ -1,0 +1,78 @@
+---
+title: "Cats (Scrambled)"
+theme: corporate
+---
+
+<!-- ai: ALTERNATE 05 — scrambled. quality: content is correct but slide order is broken on purpose. compared to the main deck, the conclusion appears second, the title slide is missing entirely, and the anatomy slide comes after the call to action. this exists to test how the renderer handles a deck whose narrative is incoherent — the format itself doesn't enforce ordering, so the parser should be unbothered. also useful for testing slide-jump and overview navigation: a user should be able to drag slides into a sensible order using only the overview grid (which we don't have yet — see open question in user-stories.md about overview reordering). -->
+
+# Adopt, Don't Shop
+
+- Visit your local shelter
+- Sponsor a senior cat
+- Tell one person about TNR programs
+
+---
+
+# Cats Have ~21 Distinct Vocalizations
+
+Mostly aimed at humans.
+
+---
+
+# A Brief History
+
+- 9500 BCE: Cyprus burial
+- 2000 BCE: Egypt
+- 1349 CE: plague era
+- 1871 CE: cat shows
+- 2007 CE: LOLcats
+
+---
+
+# The Math of Cuteness
+
+cuteness = (eye_size² × softness) / dignity
+
+---
+
+# Why Cats Are Awesome
+
+A non-exhaustive case for the defense.
+
+- Self-installing
+- Quiet
+- Pest control
+- Heated
+- Independently funded
+
+---
+
+# The Purr
+
+25 to 150 Hz. Same range as bone-density therapy.
+
+---
+
+# Cat Anatomy 101
+
+Ears, whiskers, spine (53 vertebrae!), claws.
+
+---
+
+# Cats
+
+A field guide to the best animal.
+
+(this should have been slide 1)
+
+---
+
+# Cat Photography
+
+![A cat](https://cataas.com/cat?width=400)
+
+---
+
+# Hunting Prowess
+
+House cats: ~32% success rate. Higher than lions.

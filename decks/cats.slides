@@ -1,0 +1,212 @@
+---
+title: "Cats: A Field Guide to the Best Animal"
+author: "The Cat Defense Committee"
+date: "2026-04-12"
+theme: catppuccin
+aspect: "16:9"
+footer: "decks/cats.slides — main reference deck"
+---
+
+# Cats
+
+## A Field Guide to the Best Animal
+
+The Cat Defense Committee · 2026
+
+<!-- note: Open by asking the audience how many of them currently live with a cat. Pause for hands. This grounds the rest of the talk in shared experience. -->
+<!-- ai: title slide. keep it sparse. the "best animal" claim is deliberately provocative — slide 2 is where we defend it. -->
+<!-- ai: this is the canonical cats deck used as a reference for waxon development. it exercises every directive: notes, ai notes, comments, pauses, and variants. when adding format features, extend this deck. -->
+
+---
+
+# Why Cats Are Awesome
+
+A non-exhaustive case for the defense.
+
+- **Self-installing.** Plug in food and water. They handle the rest.
+<!-- pause -->
+- **Quiet.** Average bark output: zero per day.
+<!-- pause -->
+- **Pest control.** A cat removes more rodents per week than three traps and a bored terrier combined.
+<!-- pause -->
+- **Heated.** Body temperature 38.5°C. Doubles as a lap warmer in winter.
+<!-- pause -->
+- **Independently funded.** Will hunt their own snacks if the opportunity arises.
+
+<!-- note: Don't rush through these. Each one gets a beat. The "self-installing" line lands hardest if you wait for the laugh. -->
+<!-- ai: this slide uses 4 progressive reveals. test reveal handling here when working on the renderer. -->
+
+---
+
+# Cat Anatomy 101
+
+```
+                  ╭─── ear (radar dish, 32 muscles each)
+                 │
+        ╭────────●────────╮
+       ╱  ◉    ◉    ◉    ◉ ╲   ← whiskers (proprioceptive)
+      │     ▽         ▽    │
+      │          ◡         │
+       ╲___________________╱
+         │             │
+         │   *purr*    │     ← larynx (25-150 Hz)
+         │             │
+        ╱╲            ╱╲
+       ╱  ╲__________╱  ╲    ← spine (53 vertebrae,
+      │                  │     2 more than humans)
+       ╲________________╱
+          │  │  │  │
+         ╱│  │  │  │╲       ← retractable claws
+```
+
+<!-- note: The 53 vertebrae fact is the one to lean on. Most people think of cats as flexible without knowing the structural reason. -->
+<!-- ai: ASCII diagram is intentional — exercises code-block rendering in slides. when working on the renderer, verify that monospace preservation works for box-drawing characters in every theme. -->
+
+---
+
+# The Purr
+
+The most efficient mammalian sound.
+
+<!-- pause -->
+
+- Frequency: **25–150 Hz**
+<!-- pause -->
+- Same range used in **bone-density therapy** for human astronauts
+<!-- pause -->
+- A purring cat is, technically, **medical equipment**
+
+<!-- note: This always gets a reaction. Pause after "medical equipment" for at least two full seconds. -->
+<!-- comment(@reviewer): is the bone density claim peer-reviewed? need a citation before this goes anywhere external. -->
+<!-- ai: comment from a (fictional) reviewer left here on purpose to exercise comment rendering. The purr/bone-density link is real but overstated in pop science — we should cite Muggenthaler 2001 if this deck ever leaves the test directory. -->
+
+---
+
+# Hunting Prowess
+
+How cats stack up against the rest of the predator world.
+
+| Predator        | Success Rate | Notes                          |
+|-----------------|--------------|--------------------------------|
+| Lion            | ~25%         | Group hunters                  |
+| Wolf            | ~14%         | Stamina pursuit                |
+| Polar bear      | ~10%         | Cold and patient               |
+| **House cat**   | **~32%**     | **Highest of all listed**      |
+| Great white     | ~50%         | (asterisks: ambush specialist) |
+
+<!-- note: The house cat number surprises everyone. Lean into it — this is the "wait, what?" moment of the talk. -->
+<!-- ai: tests table rendering. the bold cells should render bold in every theme. -->
+
+---
+
+# A Brief History
+
+```
+9500 BCE  ─── First domestication, Cyprus
+              (a man buried with his cat)
+                          │
+2000 BCE  ─── Egyptian cat goddess Bastet
+                          │
+1000 CE   ─── Cats spread along trade routes
+                          │
+1349 CE   ─── Black Death; cat shortage = rat surplus
+                          │
+1871 CE   ─── First cat show, London Crystal Palace
+                          │
+2007 CE   ─── First cat meme goes viral (LOLcats)
+                          │
+2026 CE   ─── waxon ships a cat-themed reference deck
+                          ▼
+                       (you are here)
+```
+
+<!-- note: The "you are here" lands. Don't oversell it. -->
+<!-- ai: another ASCII diagram, this time a vertical timeline. exercise: confirm code-block preserves leading spaces correctly in all 20 themes. -->
+
+---
+
+# Cat Communication
+
+Cats have ~21 distinct vocalizations.
+
+<!-- pause -->
+
+| Sound       | Meaning                          | Audience       |
+|-------------|----------------------------------|----------------|
+| Meow        | "Hello human"                    | Humans only    |
+| Trill       | Friendly greeting                | Humans + cats  |
+| Purr        | Contentment OR self-soothing     | Anyone nearby  |
+| Chatter     | "I see prey"                     | Self           |
+| Hiss        | "Back off"                       | Threats        |
+| Yowl        | Mating, distress, or 3am opinion | Whole building |
+
+<!-- pause -->
+
+> Adult cats almost never meow at *each other*. The meow is a vocalization domestic cats developed specifically to communicate with humans.
+
+<!-- note: This is the most "learn something new" moment of the talk. Make sure the blockquote is on screen long enough to read. -->
+
+---
+
+# Cat Photography
+
+A representative sample.
+
+![A cat](https://cataas.com/cat?width=400)
+
+<!-- ai: this slide intentionally uses a remote image (cataas.com) because we need to test how the renderer handles network-fetched images. when testing offline, replace with a local file in decks/assets/. cf user-stories.md story #9 (Marcus's broken image) and the related open question about asset policy. -->
+<!-- comment(@maya): can we get a local fallback? presenters with no wifi will hit a broken image here. -->
+
+---
+
+# The Math of Cuteness
+
+A toy model.
+
+```
+cuteness = (eye_size² × softness) / dignity
+```
+
+<!-- pause -->
+
+Where:
+
+- `eye_size` is normalized to a logarithmic scale
+- `softness` is measured in microfibers per cm²
+- `dignity` is the only term that *increases* with age
+
+<!-- pause -->
+
+> A kitten maximizes cuteness because its dignity term is near zero. An old cat has high dignity but compensates with sheer cumulative charisma.
+
+---variant: cuteness-equation-tighter
+# The Cuteness Equation
+
+```
+cuteness = (eyes² × fluff) / dignity
+```
+
+Three terms. The denominator is the only one you can't fix.
+
+---variant: cuteness-equation-no-math
+# Why Kittens Win
+
+Kittens are dignity-poor and eye-rich. Adults trade eye-richness for dignity. Both are good. The kittens are louder about it.
+
+<!-- ai: 2 variants on slide 9. the first ("tighter") is the same idea shorter. the second ("no-math") drops the equation entirely for audiences that glaze over at math. test variant switching here when working on the variant UI. -->
+
+---
+
+# Adopt, Don't Shop
+
+Three things to do this week.
+
+- **Visit your local shelter.** Even if you don't adopt — the cats benefit from socialization.
+<!-- pause -->
+- **Sponsor a senior cat.** Older cats are the hardest to place and the easiest to live with.
+<!-- pause -->
+- **Tell one person about TNR programs.** Trap-neuter-return is the single most effective cat welfare intervention in the world.
+
+<!-- note: End slow. Let the room sit with this one. Don't rush to "thank you." -->
+<!-- ai: closing slide deliberately mirrors slide 2's structure (bullet list with pauses) for symmetry. the talk opens with "why cats are great" and closes with "here's what you can do about it." -->
+<!-- comment(@cat-defense-committee): approved for distribution. -->

@@ -84,30 +84,40 @@ func serveCmd() *cobra.Command {
 	)
 
 	cmd := &cobra.Command{
-		Use:   "serve <file.slides>",
+		Use:   "serve <file.slides | dir>",
 		Short: "Start a live-preview server with hot reload",
 		Long: bold.Sprint("Start a live-preview server with hot reload.") + `
 
-Opens your slides in the browser and watches the .slides file for changes.
-Every save triggers an instant reload via WebSocket — no manual refresh needed.
+Pass a single ` + bold.Sprint(".slides") + ` file to serve just that deck, or pass a directory
+to serve every ` + bold.Sprint(".slides") + ` file under it. In directory mode the index page
+lists all decks and the in-browser ` + info.Sprint("d") + ` panel switches between them.
+
+Every save triggers an instant reload via WebSocket — scoped per deck so
+editing one deck only reloads browsers viewing that deck.
 
 ` + dim.Sprint("Keyboard controls in the browser:") + `
-  Right/Space/Enter  Next slide or reveal next pause
-  Left/Backspace     Previous slide
-  f                  Toggle fullscreen
-  1-9                Jump to slide N
-  Home/End           First/last slide
+  ` + info.Sprint("→/Space/Enter") + `  Next slide
+  ` + info.Sprint("←/Backspace") + `    Previous slide
+  ` + info.Sprint("v") + `              Variants panel
+  ` + info.Sprint("c") + `              Comments panel
+  ` + info.Sprint("d") + `              Decks panel
+  ` + info.Sprint("x") + `              Compare main vs variant side-by-side
+  ` + info.Sprint("?") + `              Full keyboard help
+  ` + info.Sprint("f") + `              Fullscreen   ` + info.Sprint("Esc") + `  Close panel
+  ` + info.Sprint("1-9") + `            Jump to slide N
 
 ` + dim.Sprint("Examples:") + `
   ` + info.Sprint("waxon serve deck.slides") + `
+  ` + info.Sprint("waxon serve decks/") + `                      ` + dim.Sprint("# multi-deck mode") + `
   ` + info.Sprint("waxon serve deck.slides --theme terminal") + `
-  ` + info.Sprint("waxon serve deck.slides --port 3000 --no-open") + `
+  ` + info.Sprint("waxon serve decks/ --port 3000 --no-open") + `
 
 ` + dim.Sprint("For agents:") + `
   Start the server in the background, then use ` + info.Sprint("waxon agent-context") + `
   to read the deck structure. Edit the .slides file directly — the
   browser will reload automatically.`,
 		Example: `  waxon serve deck.slides
+  waxon serve decks/
   waxon serve deck.slides --theme terminal --port 3000
   waxon serve my-talk.slides --no-open --bind 127.0.0.1`,
 		Args: cobra.ExactArgs(1),

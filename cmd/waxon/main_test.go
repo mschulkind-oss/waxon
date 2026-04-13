@@ -99,8 +99,8 @@ func TestThemesCmdJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &themes); err != nil {
 		t.Fatalf("JSON decode: %v\noutput: %s", err, out)
 	}
-	if len(themes) != 6 {
-		t.Errorf("got %d themes, want 6", len(themes))
+	if len(themes) != 20 {
+		t.Errorf("got %d themes, want 20", len(themes))
 	}
 }
 
@@ -350,6 +350,22 @@ func TestServeCmdBadFile(t *testing.T) {
 	_, err := executeCmd("serve", "/nonexistent.slides")
 	if err == nil {
 		t.Error("expected error for nonexistent file")
+	}
+}
+
+func TestServeCmdHelpMentionsDirectoryMode(t *testing.T) {
+	out, err := executeCmd("serve", "--help")
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+	if !strings.Contains(out, "directory") {
+		t.Error("serve --help should mention directory mode")
+	}
+	if !strings.Contains(out, "Variants panel") {
+		t.Error("serve --help should document the variants panel")
+	}
+	if !strings.Contains(out, "Decks panel") {
+		t.Error("serve --help should document the decks panel")
 	}
 }
 

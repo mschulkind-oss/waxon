@@ -1,0 +1,101 @@
+---
+title: "Cats: Mixed Edition"
+author: "A Committee That Couldn't Agree"
+theme: github-dark
+---
+
+<!-- ai: ALTERNATE 06 — mixed quality. quality: deliberately uneven. compared to the main deck, this is what happens when 5 different agents touch the same deck without coordination. some slides are great (slide 4, slide 7), some are terrible (slide 2, slide 9), and the tone shifts wildly between them. exists to test how a real reviewer would use the comment system to triage this kind of deck. each problematic slide has a comment from a fictional reviewer pointing out the issue. -->
+
+# Cats: A Field Guide
+
+## Mixed Edition (Reviewer-Annotated)
+
+A Committee That Couldn't Agree
+
+---
+
+# Cats Good
+
+cats r good
+
+cats good yes
+
+<!-- comment(@reviewer): this slide is unsalvageable. delete it and replace with the version from the main deck. -->
+
+---
+
+# The Argument From Comfort
+
+Living with a cat lowers measurable cortisol levels in humans. The presence of a purring cat is linked, in multiple longitudinal studies, to reduced incidence of stress-related cardiovascular events.
+
+A cat is, in this sense, not just a companion but a low-cost preventive health intervention — one that arrives pre-trained, asks for very little, and lasts for fifteen years on average.
+
+<!-- note: this is the strongest slide in the deck. open with this if you reorder. -->
+
+---
+
+# Cat Anatomy
+
+```
+[insert diagram here]
+```
+
+<!-- comment(@reviewer): the placeholder was never filled in. either drop it or pull the ASCII diagram from the main deck. -->
+
+---
+
+# Hunting
+
+| Animal     | Success |
+|------------|---------|
+| House cat  | 32%     |
+| Lion       | 25%     |
+| Wolf       | 14%     |
+
+A house cat is a more efficient predator than a lion. This is the single most counter-intuitive fact about domestic cats and it deserves to be on every cat deck ever made.
+
+---
+
+# History
+
+cats were in egypt then they were sad in the middle ages then they came back
+
+<!-- comment(@reviewer): tone problem. previous slide is rigorous, this one reads like a sleepy text message. unify or delete. -->
+
+---
+
+# Communication
+
+Adult cats almost never meow at each other. The meow is a vocalization domestic cats developed *specifically* to communicate with humans.
+
+The meow is a feature cats evolved for us. They learned a language we could hear, because we couldn't hear theirs.
+
+<!-- note: pause after this. it deserves the silence. -->
+
+---
+
+# Photo
+
+(skipped)
+
+<!-- comment(@reviewer): why is there a slide for a photo if there's no photo. -->
+
+---
+
+# Math
+
+The cuteness equation is provided here for completeness:
+
+```
+cuteness = (eye_size² × softness) / dignity
+```
+
+We acknowledge this is not science.
+
+---
+
+# CONCLUSION
+
+ADOPT A CAT THANKS
+
+<!-- comment(@reviewer): all-caps, no content. previous version had three concrete asks. revert. -->
