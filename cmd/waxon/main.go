@@ -38,6 +38,7 @@ func main() {
 }
 
 func rootCmd() *cobra.Command {
+	var themeDirs []string
 	cmd := &cobra.Command{
 		Use:   "waxon",
 		Short: "A slide deck toolkit built for the mind meld between human and agent",
@@ -62,6 +63,14 @@ collaborate on the same ` + bold.Sprint(".slides") + ` file.
 	}
 
 	cmd.SetVersionTemplate(accent.Sprint("waxon") + " {{.Version}}\n")
+
+	cmd.PersistentFlags().StringSliceVar(&themeDirs, "theme-dir", nil,
+		"Additional directory to load external .css themes from (repeatable)")
+
+	cmd.PersistentPreRunE = func(c *cobra.Command, args []string) error {
+		dirs := append(themes.DefaultSearchPaths(), themeDirs...)
+		return themes.LoadExternal(dirs)
+	}
 
 	cmd.AddCommand(serveCmd())
 	cmd.AddCommand(exportCmd())

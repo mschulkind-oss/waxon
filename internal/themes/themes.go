@@ -14,8 +14,41 @@ type Theme struct {
 	CSS         string `json:"-"`
 }
 
-// All returns all built-in themes in display order.
+// All returns every registered theme: built-ins followed by external
+// themes loaded via LoadExternal. External themes that share a name with
+// a built-in replace the built-in in place (rather than appearing twice).
 func All() []Theme {
+	builtins := builtinThemes()
+	ext := externalThemes()
+	if len(ext) == 0 {
+		return builtins
+	}
+	// Index external by name for shadow replacement.
+	extByName := make(map[string]Theme, len(ext))
+	for _, t := range ext {
+		extByName[t.Name] = t
+	}
+	// Build output: built-ins (replaced where shadowed), then new externals.
+	replaced := make(map[string]bool)
+	out := make([]Theme, 0, len(builtins)+len(ext))
+	for _, b := range builtins {
+		if r, ok := extByName[b.Name]; ok {
+			out = append(out, r)
+			replaced[b.Name] = true
+		} else {
+			out = append(out, b)
+		}
+	}
+	for _, e := range ext {
+		if !replaced[e.Name] {
+			out = append(out, e)
+		}
+	}
+	return out
+}
+
+// builtinThemes returns the compile-time theme list in display order.
+func builtinThemes() []Theme {
 	return []Theme{
 		{Name: "default", Description: "Clean, minimal dark theme with good contrast", CSS: defaultCSS},
 		{Name: "light", Description: "Bright background, dark text, professional look", CSS: lightCSS},
