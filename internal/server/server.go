@@ -636,7 +636,7 @@ func (s *Server) handleCommentPost(w http.ResponseWriter, r *http.Request) {
 	s.notifyDeck(rel)
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]any{
+	_ = json.NewEncoder(w).Encode(map[string]any{
 		"ok":   true,
 		"path": rel,
 	})
@@ -708,7 +708,7 @@ func (s *Server) Watch(ctx context.Context) error {
 			if filepath.Ext(event.Name) != ".slides" {
 				continue
 			}
-			if !(event.Has(fsnotify.Write) || event.Has(fsnotify.Create) || event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename)) {
+			if !event.Has(fsnotify.Write) && !event.Has(fsnotify.Create) && !event.Has(fsnotify.Remove) && !event.Has(fsnotify.Rename) {
 				continue
 			}
 			rel, err := filepath.Rel(s.rootDir, event.Name)

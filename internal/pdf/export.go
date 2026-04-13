@@ -63,7 +63,11 @@ func Export(ctx context.Context, deck *format.Deck, opts Options) error {
 
 	addr := fmt.Sprintf("http://%s/", listener.Addr().String())
 
-	// Configure chromedp
+	// Configure chromedp. `SchedulerLoopQuarantine` is a PartitionAlloc
+	// feature that has an assertion (`ThreadCache::IsValid`) that fires
+	// sporadically in CI-style environments (ubuntu-latest + containerized
+	// glibc), taking the browser down before we can print. We don't need it,
+	// so turn it off alongside the other standard headless flags.
 	allocCtx, allocCancel := chromedp.NewExecAllocator(ctx,
 		chromedp.NoFirstRun,
 		chromedp.NoDefaultBrowserCheck,
@@ -71,6 +75,7 @@ func Export(ctx context.Context, deck *format.Deck, opts Options) error {
 		chromedp.DisableGPU,
 		chromedp.NoSandbox,
 		chromedp.Flag("disable-dev-shm-usage", true),
+		chromedp.Flag("disable-features", "SchedulerLoopQuarantine"),
 	)
 	defer allocCancel()
 
