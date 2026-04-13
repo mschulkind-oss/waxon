@@ -99,8 +99,8 @@ func TestThemesCmdJSON(t *testing.T) {
 	if err := json.Unmarshal([]byte(out), &themes); err != nil {
 		t.Fatalf("JSON decode: %v\noutput: %s", err, out)
 	}
-	if len(themes) != 21 {
-		t.Errorf("got %d themes, want 21", len(themes))
+	if len(themes) != 23 {
+		t.Errorf("got %d themes, want 23", len(themes))
 	}
 }
 

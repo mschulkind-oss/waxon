@@ -38,6 +38,8 @@ func All() []Theme {
 		{Name: "ocean", Description: "Deep teals and seafoam for a calm aquatic palette", CSS: oceanCSS},
 		{Name: "sunset", Description: "Warm orange-to-violet gradient backdrop", CSS: sunsetCSS},
 		{Name: "edit-dos", Description: "MS-DOS EDIT.COM — blue + yellow box-drawing, 80×25 vibes", CSS: editDosCSS},
+		{Name: "win98", Description: "Windows 98 — silver chrome, navy title bars, beveled 3D dialogs", CSS: win98CSS},
+		{Name: "nes", Description: "8-bit NES — Press Start 2P pixel font on chunky pixel borders", CSS: nesCSS},
 	}
 }
 
@@ -790,4 +792,284 @@ body {
   border-left: 3px double #ffff55;
 }
 .slide .waxon-badge { border-radius: 0; border-width: 1px; }
+`
+
+// win98CSS — inspired by 98.css (github.com/jdan/98.css), MIT licensed.
+// Pixel-beveled dialog chrome, navy title bar, silver canvas.
+const win98CSS = `
+:root {
+  --slide-bg: #c0c0c0;
+  --slide-fg: #000000;
+  --accent: #000080;
+  --font-body: 'Pixelated MS Sans Serif', 'MS Sans Serif', Tahoma, 'Microsoft Sans Serif', Arial, sans-serif;
+  --font-heading: 'Pixelated MS Sans Serif', 'MS Sans Serif', Tahoma, Arial, sans-serif;
+  --font-mono: 'Perfect DOS VGA 437', 'Lucida Console', 'Courier New', monospace;
+  --color-red: #aa0000;
+  --color-green: #008000;
+  --color-yellow: #808000;
+  --color-blue: #000080;
+  --color-aqua: #008080;
+  --color-dim: #808080;
+  --slide-padding: 3vmin;
+}
+body { background: #008080; } /* classic teal desktop */
+.slide {
+  /* Beveled silver dialog: highlight top+left, shadow right+bottom. */
+  background: #c0c0c0;
+  color: #000;
+  border: 1px solid #0a0a0a;
+  box-shadow:
+    inset -1px -1px #0a0a0a,
+    inset 1px 1px #dfdfdf,
+    inset -2px -2px #808080,
+    inset 2px 2px #ffffff;
+  padding: calc(var(--slide-padding) + 1.8em) var(--slide-padding) var(--slide-padding);
+  border-radius: 0;
+}
+.slide::before {
+  /* Navy title bar — the iconic Win98 gradient. */
+  content: '■  Slide.exe';
+  position: absolute;
+  top: 3px; left: 3px; right: 3px;
+  height: 1.5em;
+  line-height: 1.5em;
+  padding: 0 0.4em;
+  background: linear-gradient(90deg, #000080 0%, #1084d0 100%);
+  color: #ffffff;
+  font-family: var(--font-heading);
+  font-size: 0.75em;
+  font-weight: bold;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  overflow: hidden;
+  pointer-events: none;
+}
+.slide::after {
+  /* Fake min/max/close buttons on the right edge of the title bar. */
+  content: '_ □ ×';
+  position: absolute;
+  top: 3px;
+  right: 0.6em;
+  height: 1.5em;
+  line-height: 1.3em;
+  color: #ffffff;
+  font-family: var(--font-heading);
+  font-size: 0.7em;
+  letter-spacing: 0.35em;
+  pointer-events: none;
+}
+.slide h1 { color: #000080; font-weight: bold; font-size: 2em; border-bottom: 1px solid #808080; padding-bottom: 0.2em; }
+.slide h2 { color: #000000; font-weight: bold; font-size: 1.5em; }
+.slide h3 { color: #000000; font-weight: bold; font-size: 1.2em; }
+.slide p, .slide li { color: #000000; }
+.slide strong { color: #000080; }
+.slide a { color: #0000ee; text-decoration: underline; }
+.slide ul li::marker { color: #000080; }
+.slide pre {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #0a0a0a;
+  border-radius: 0;
+  box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #808080;
+  padding: 0.6em 0.9em;
+  font-family: var(--font-mono);
+}
+.slide :not(pre) > code {
+  background: #ffffff;
+  color: #000000;
+  border: 1px solid #808080;
+  padding: 0 0.25em;
+  border-radius: 0;
+  font-family: var(--font-mono);
+}
+.slide blockquote {
+  background: #ffffff;
+  border: 1px solid #0a0a0a;
+  border-left: 4px solid #000080;
+  color: #000000;
+  box-shadow: inset -1px -1px #dfdfdf, inset 1px 1px #c0c0c0;
+  padding: 0.5em 0.9em;
+  font-style: normal;
+}
+.slide table { border-collapse: collapse; }
+.slide th {
+  background: #c0c0c0;
+  color: #000000;
+  border: 1px solid #0a0a0a;
+  box-shadow: inset -1px -1px #808080, inset 1px 1px #ffffff;
+  padding: 0.35em 0.8em;
+  font-weight: bold;
+}
+.slide td { border: 1px solid #808080; padding: 0.3em 0.8em; background: #ffffff; }
+.slide hr, .slide .waxon-hr {
+  border: none;
+  height: 2px;
+  background: none;
+  box-shadow: 0 1px #808080, 0 2px #ffffff;
+}
+.slide .waxon-card,
+.slide .waxon-compare-pane,
+.slide .waxon-stat,
+.slide .waxon-quote,
+.slide .waxon-timeline,
+.slide .waxon-flow,
+.slide .waxon-grid-cell {
+  background: #c0c0c0;
+  color: #000;
+  border: 1px solid #0a0a0a;
+  border-radius: 0;
+  box-shadow:
+    inset -1px -1px #0a0a0a,
+    inset 1px 1px #dfdfdf,
+    inset -2px -2px #808080,
+    inset 2px 2px #ffffff;
+}
+.slide .waxon-badge {
+  background: #c0c0c0;
+  color: #000;
+  border: 1px solid #0a0a0a;
+  border-radius: 0;
+  box-shadow: inset -1px -1px #808080, inset 1px 1px #ffffff;
+}
+.progress { background: #000080; }
+.footer, .footer-counter { color: #000080; }
+`
+
+// nesCSS — inspired by NES.css (github.com/nostalgic-css/NES.css), MIT licensed.
+// 8-bit pixel borders using stepped box-shadows to avoid SVG border-image.
+const nesCSS = `
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+:root {
+  --slide-bg: #212529;
+  --slide-fg: #ffffff;
+  --accent: #209cee;
+  --font-body: 'Press Start 2P', 'Courier New', monospace;
+  --font-heading: 'Press Start 2P', 'Courier New', monospace;
+  --font-mono: 'Press Start 2P', 'Courier New', monospace;
+  --color-red: #e76e55;
+  --color-green: #92cc41;
+  --color-yellow: #f7d51d;
+  --color-blue: #209cee;
+  --color-aqua: #7ad6f0;
+  --color-dim: #adafbc;
+  --slide-padding: 4vmin;
+}
+body { background: #0c0d10; }
+.slide {
+  background: #212529;
+  color: #ffffff;
+  border: none;
+  border-radius: 0;
+  /* 4px pixel-stepped border built from box-shadows. */
+  box-shadow:
+    0 -4px #ffffff, 0 4px #ffffff,
+    -4px 0 #ffffff, 4px 0 #ffffff,
+    0 -8px #212529, 0 8px #212529,
+    -8px 0 #212529, 8px 0 #212529,
+    -4px -4px 0 4px #ffffff,
+    4px -4px 0 4px #ffffff,
+    -4px 4px 0 4px #ffffff,
+    4px 4px 0 4px #ffffff;
+  margin: 8px;
+  font-size: 0.78em; /* Press Start 2P is chunky — shrink baseline */
+  line-height: 1.8;
+}
+.slide h1 { color: #f7d51d; font-size: 1.6em; text-shadow: 3px 3px 0 #000000; margin-bottom: 0.8em; }
+.slide h2 { color: #209cee; font-size: 1.2em; text-shadow: 2px 2px 0 #000000; }
+.slide h3 { color: #92cc41; font-size: 1em; }
+.slide p, .slide li { color: #ffffff; }
+.slide strong { color: #f7d51d; }
+.slide em { color: #7ad6f0; font-style: normal; }
+.slide a { color: #209cee; text-decoration: underline; text-underline-offset: 4px; }
+.slide ul { list-style: none; padding-left: 1.5em; }
+.slide ul li { position: relative; }
+.slide ul li::before {
+  content: '';
+  position: absolute;
+  left: -1.2em;
+  top: 0.5em;
+  width: 0.6em;
+  height: 0.6em;
+  background: #92cc41;
+  box-shadow: 0 0 0 2px #000000;
+}
+.slide ol { padding-left: 2em; }
+.slide ol li::marker { color: #f7d51d; font-weight: bold; }
+.slide pre {
+  background: #000000;
+  color: #92cc41;
+  border: none;
+  border-radius: 0;
+  padding: 1em;
+  box-shadow:
+    0 -4px #ffffff, 0 4px #ffffff,
+    -4px 0 #ffffff, 4px 0 #ffffff;
+  margin: 8px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+.slide :not(pre) > code {
+  background: #000000;
+  color: #f7d51d;
+  padding: 0.1em 0.4em;
+  border-radius: 0;
+  font-family: 'Courier New', monospace;
+}
+.slide blockquote {
+  background: #1b1e22;
+  color: #adafbc;
+  border: none;
+  padding: 0.8em 1.2em;
+  margin: 8px 16px;
+  box-shadow:
+    0 -4px #7ad6f0, 0 4px #7ad6f0,
+    -4px 0 #7ad6f0, 4px 0 #7ad6f0;
+  font-style: normal;
+}
+.slide table { border-collapse: separate; border-spacing: 0; }
+.slide th {
+  background: #209cee;
+  color: #ffffff;
+  padding: 0.5em 0.9em;
+  border: 2px solid #ffffff;
+}
+.slide td {
+  background: #212529;
+  color: #ffffff;
+  padding: 0.5em 0.9em;
+  border: 2px solid #ffffff;
+}
+.slide hr, .slide .waxon-hr {
+  border: none;
+  height: 4px;
+  background:
+    repeating-linear-gradient(90deg, #ffffff 0 8px, transparent 8px 16px);
+}
+.slide .waxon-card,
+.slide .waxon-compare-pane,
+.slide .waxon-stat,
+.slide .waxon-quote,
+.slide .waxon-timeline,
+.slide .waxon-flow,
+.slide .waxon-grid-cell {
+  background: #1b1e22;
+  color: #ffffff;
+  border: none;
+  border-radius: 0;
+  padding: 1em;
+  box-shadow:
+    0 -4px #ffffff, 0 4px #ffffff,
+    -4px 0 #ffffff, 4px 0 #ffffff;
+  margin: 8px;
+}
+.slide .waxon-badge {
+  background: #f7d51d;
+  color: #000000;
+  border-radius: 0;
+  border: 2px solid #000000;
+  padding: 0.2em 0.5em;
+  font-weight: normal;
+}
+.progress { background: #92cc41; box-shadow: 0 0 0 2px #ffffff; }
+.footer, .footer-counter { color: #7ad6f0; }
 `

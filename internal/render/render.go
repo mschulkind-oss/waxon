@@ -377,9 +377,6 @@ const pageTemplate = `<!DOCTYPE html>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Title}}</title>
-<style id="theme-css">
-{{themeCSS .Theme}}
-</style>
 <style>
 /*
  * Layered architecture:
@@ -1259,6 +1256,9 @@ html, body {
   z-index: 1;
 }
 {{end}}
+</style>
+<style id="theme-css">
+{{themeCSS .Theme}}
 </style>
 </head>
 <body{{if .Transition}} data-transition="{{.Transition}}"{{end}}>
@@ -2456,9 +2456,6 @@ const printTemplate = `<!DOCTYPE html>
 <meta charset="utf-8">
 <title>{{.Title}}</title>
 <style>
-{{themeCSS .Theme}}
-</style>
-<style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
@@ -2560,6 +2557,9 @@ html, body {
   pointer-events: none;
 }
 {{end}}
+</style>
+<style id="theme-css">
+{{themeCSS .Theme}}
 </style>
 </head>
 <body>
