@@ -7,7 +7,7 @@ name = "waxon"
 dynamic = ["version"]
 description = "A slide deck toolkit built for the mind meld between human and agent"
 readme = "README.md"
-license = "MIT"
+license = "Apache-2.0"
 requires-python = ">=3.10"
 authors = [
     { name = "Matt Schulkind" },

@@ -2,7 +2,7 @@
   "name": "@waxon/waxon",
   "version": "0.0.1",
   "description": "A slide deck toolkit built for the mind meld between human and agent",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/mschulkind-oss/waxon.git"

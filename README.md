@@ -890,4 +890,4 @@ just check                          # lint + format + test
 
 ## License
 
-MIT
+Apache 2.0

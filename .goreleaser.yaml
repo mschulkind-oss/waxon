@@ -62,7 +62,7 @@ brews:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://github.com/mschulkind-oss/waxon"
     description: "A slide deck toolkit built for the mind meld between human and agent"
-    license: "MIT"
+    license: "Apache-2.0"
     directory: Formula
     install: |
       bin.install "waxon"

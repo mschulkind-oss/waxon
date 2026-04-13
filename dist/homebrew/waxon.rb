@@ -5,7 +5,7 @@
 class Waxon < Formula
   desc "A slide deck toolkit built for the mind meld between human and agent"
   homepage "https://github.com/mschulkind-oss/waxon"
-  license "MIT"
+  license "Apache-2.0"
   version "0.0.0" # Updated by CI
 
   on_macos do
