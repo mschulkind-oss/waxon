@@ -24,6 +24,7 @@ type Options struct {
 	ThemeOverride string // Override theme from frontmatter
 	Variant       string // Choose specific variant
 	Pages         string // Page range (e.g., "1-5", "3,7,9")
+	DeckDir       string // Directory of the source .slides file (for relative theme paths)
 }
 
 // Export renders a deck to PDF.
@@ -37,6 +38,7 @@ func Export(ctx context.Context, deck *format.Deck, opts Options) error {
 		ThemeOverride: theme,
 		Standalone:    true,
 		Print:         true,
+		DeckDir:       opts.DeckDir,
 	})
 	if err != nil {
 		return fmt.Errorf("render HTML: %w", err)

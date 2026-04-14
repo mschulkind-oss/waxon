@@ -1,6 +1,9 @@
 package render
 
 import (
+	"html/template"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -362,5 +365,142 @@ func TestRenderIndex(t *testing.T) {
 	}
 	if !strings.Contains(html, "/d/dogs.slides") {
 		t.Error("missing dogs link")
+	}
+}
+
+func TestRenderHTMLThemePathInline(t *testing.T) {
+	dir := t.TempDir()
+	themeCSS := ".slide h1 { color: hotpink; } /* SENTINEL-CUSTOM-THEME */"
+	if err := os.WriteFile(filepath.Join(dir, "custom.css"), []byte(themeCSS), 0o644); err != nil {
+		t.Fatalf("write theme: %v", err)
+	}
+
+	deck := testDeck()
+	deck.Meta.Theme = "./custom.css"
+
+	html, err := RenderHTML(deck, Options{DeckDir: dir})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, "SENTINEL-CUSTOM-THEME") {
+		t.Error("custom theme CSS not inlined in rendered HTML")
+	}
+}
+
+func TestRenderHTMLThemePathPrint(t *testing.T) {
+	dir := t.TempDir()
+	themeCSS := ".slide { background: lime; } /* SENTINEL-PRINT-THEME */"
+	if err := os.WriteFile(filepath.Join(dir, "print.css"), []byte(themeCSS), 0o644); err != nil {
+		t.Fatalf("write theme: %v", err)
+	}
+
+	deck := testDeck()
+	deck.Meta.Theme = "./print.css"
+
+	html, err := RenderHTML(deck, Options{DeckDir: dir, Print: true, Standalone: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, "SENTINEL-PRINT-THEME") {
+		t.Error("custom theme CSS not inlined in print render")
+	}
+}
+
+func TestExpandBuiltinImports(t *testing.T) {
+	ThemeCSS = func(theme string) template.CSS {
+		if theme == "minimal" {
+			return template.CSS(":root { --minimal: 1; /* BUILTIN-MINIMAL */ }")
+		}
+		return ""
+	}
+	t.Cleanup(func() {
+		ThemeCSS = func(string) template.CSS { return "" }
+	})
+
+	in := `@import "builtin:minimal";
+.custom { color: red; }`
+	out := expandBuiltinImports(in)
+	if !strings.Contains(out, "BUILTIN-MINIMAL") {
+		t.Errorf("expected builtin CSS to be inlined, got: %q", out)
+	}
+	if !strings.Contains(out, ".custom { color: red; }") {
+		t.Errorf("expected user CSS to remain, got: %q", out)
+	}
+	if strings.Contains(out, "@import") {
+		t.Errorf("expected @import line to be replaced, got: %q", out)
+	}
+}
+
+func TestExpandBuiltinImportsUnknown(t *testing.T) {
+	ThemeCSS = func(string) template.CSS { return "" }
+	t.Cleanup(func() {
+		ThemeCSS = func(string) template.CSS { return "" }
+	})
+	out := expandBuiltinImports(`@import "builtin:nope";`)
+	if !strings.Contains(out, "unknown theme") {
+		t.Errorf("expected unknown-theme comment, got: %q", out)
+	}
+}
+
+func TestRenderHTMLFonts(t *testing.T) {
+	deck := testDeck()
+	deck.Meta.Fonts = []string{
+		"https://fonts.googleapis.com/css2?family=Inter",
+		"https://example.com/foo.css",
+	}
+	html, err := RenderHTML(deck, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	for _, href := range deck.Meta.Fonts {
+		want := `<link rel="stylesheet" href="` + href + `">`
+		if !strings.Contains(html, want) {
+			t.Errorf("missing font link %q", want)
+		}
+	}
+}
+
+func TestRenderHTMLFontsPrint(t *testing.T) {
+	deck := testDeck()
+	deck.Meta.Fonts = []string{"https://fonts.googleapis.com/css2?family=Inter"}
+	html, err := RenderHTML(deck, Options{Print: true, Standalone: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, `href="https://fonts.googleapis.com/css2?family=Inter"`) {
+		t.Error("font link missing in print render")
+	}
+}
+
+func TestRenderHTMLPrintSlideClass(t *testing.T) {
+	deck := testDeck()
+	deck.Slides[0].SlideOpts = &format.SlideOpts{Class: "no-chrome"}
+	html, err := RenderHTML(deck, Options{Print: true, Standalone: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, `class="slide no-chrome"`) {
+		t.Error("expected no-chrome class on slide in print output")
+	}
+}
+
+func TestRenderHTMLPrintSlideBg(t *testing.T) {
+	deck := testDeck()
+	deck.Slides[0].SlideOpts = &format.SlideOpts{Background: "#112233"}
+	html, err := RenderHTML(deck, Options{Print: true, Standalone: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !strings.Contains(html, "background: #112233") {
+		t.Error("expected slide background in print output")
+	}
+}
+
+func TestRenderHTMLThemePathMissingDeckDir(t *testing.T) {
+	deck := testDeck()
+	deck.Meta.Theme = "./missing.css"
+	_, err := RenderHTML(deck, Options{})
+	if err == nil {
+		t.Fatal("expected error for theme path without DeckDir")
 	}
 }

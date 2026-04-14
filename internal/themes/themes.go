@@ -728,7 +728,7 @@ body {
     linear-gradient(#ffff55, #ffff55) 0 0 / 100% 1.6em no-repeat,
     #0000aa;
 }
-.slide::before {
+.slide:not(.no-chrome)::before {
   content: '─[ FILE ]── EDIT ── SEARCH ── VIEW ── OPTIONS ── HELP ──────';
   position: absolute;
   top: 0.15em;
@@ -859,7 +859,7 @@ body { background: #008080; } /* classic teal desktop */
   padding: calc(var(--slide-padding) + 1.8em) var(--slide-padding) var(--slide-padding);
   border-radius: 0;
 }
-.slide::before {
+.slide:not(.no-chrome)::before {
   /* Navy title bar — the iconic Win98 gradient. */
   content: '■  Slide.exe';
   position: absolute;
@@ -877,7 +877,7 @@ body { background: #008080; } /* classic teal desktop */
   overflow: hidden;
   pointer-events: none;
 }
-.slide::after {
+.slide:not(.no-chrome)::after {
   /* Fake min/max/close buttons on the right edge of the title bar. */
   content: '_ □ ×';
   position: absolute;

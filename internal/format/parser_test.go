@@ -45,6 +45,34 @@ terminal-effects: true
 	}
 }
 
+func TestParseFonts(t *testing.T) {
+	input := `---
+title: "With Fonts"
+fonts:
+  - "https://fonts.googleapis.com/css2?family=Inter"
+  - "https://example.com/custom.css"
+---
+
+# Hello
+`
+	deck, err := Parse(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := []string{
+		"https://fonts.googleapis.com/css2?family=Inter",
+		"https://example.com/custom.css",
+	}
+	if len(deck.Meta.Fonts) != len(want) {
+		t.Fatalf("fonts len = %d, want %d", len(deck.Meta.Fonts), len(want))
+	}
+	for i, w := range want {
+		if deck.Meta.Fonts[i] != w {
+			t.Errorf("fonts[%d] = %q, want %q", i, deck.Meta.Fonts[i], w)
+		}
+	}
+}
+
 func TestParseDefaults(t *testing.T) {
 	input := `---
 title: "Minimal"
@@ -503,10 +531,26 @@ func TestParseSlideOptsEmpty(t *testing.T) {
 	}
 }
 
-func TestParseSlideOptsInvalidPair(t *testing.T) {
-	opts := parseSlideOpts("noequals")
-	if opts != nil {
-		t.Error("expected nil for invalid pair")
+func TestParseSlideOptsBareTokenIsClassShorthand(t *testing.T) {
+	opts := parseSlideOpts("no-chrome")
+	if opts == nil {
+		t.Fatal("expected opts for bare class shorthand")
+	}
+	if opts.Class != "no-chrome" {
+		t.Errorf("class = %q, want %q", opts.Class, "no-chrome")
+	}
+}
+
+func TestParseSlideOptsBareTokenCombined(t *testing.T) {
+	opts := parseSlideOpts("bg=#000, no-chrome")
+	if opts == nil {
+		t.Fatal("expected opts")
+	}
+	if opts.Background != "#000" {
+		t.Errorf("bg = %q, want %q", opts.Background, "#000")
+	}
+	if opts.Class != "no-chrome" {
+		t.Errorf("class = %q, want %q", opts.Class, "no-chrome")
 	}
 }
 
@@ -886,6 +930,48 @@ func TestGridFenceBadSize(t *testing.T) {
 	}
 }
 
+func TestGridWithNestedStat(t *testing.T) {
+	// Common pattern: a multi-column grid where each column is a stat block.
+	input := ":::grid 3\n" +
+		"::col\n:::stat green\n18x\n::label faster\n:::\n" +
+		"::col\n:::stat yellow\n3d\n::label to first demo\n:::\n" +
+		"::col\n:::stat aqua\n$0\n::label cost\n:::\n" +
+		":::"
+	out := applyFenceBlocks(input)
+	if contains(out, "waxon-error") {
+		t.Fatalf("nested stat inside grid should not error, got %q", out)
+	}
+	if !contains(out, `grid-template-columns: repeat(3, 1fr);`) {
+		t.Errorf("grid layout missing")
+	}
+	// Expect three stat number divs.
+	needles := []string{"18x", "3d", "$0"}
+	for _, n := range needles {
+		if !contains(out, `<div class="waxon-stat-number">`+n+`</div>`) {
+			t.Errorf("expected stat number %q as nested stat, got %q", n, out)
+		}
+	}
+	if !contains(out, `waxon-stat green`) || !contains(out, `waxon-stat yellow`) || !contains(out, `waxon-stat aqua`) {
+		t.Errorf("nested stat color classes missing, got %q", out)
+	}
+}
+
+func TestCardWithNestedCard(t *testing.T) {
+	// Two levels deep to confirm depth tracking.
+	input := ":::card\nouter\n:::card green\ninner\n:::\n:::"
+	out := applyFenceBlocks(input)
+	if contains(out, "waxon-error") {
+		t.Fatalf("nested card should not error, got %q", out)
+	}
+	// Outer and inner wrappers should both appear.
+	if !contains(out, `<div class="waxon-card">`) {
+		t.Errorf("outer card missing, got %q", out)
+	}
+	if !contains(out, `<div class="waxon-card green">`) {
+		t.Errorf("inner card missing, got %q", out)
+	}
+}
+
 // ---------- Flow fence ----------
 
 func TestFlowHorizontal(t *testing.T) {
@@ -929,6 +1015,24 @@ func TestFlowWithPaletteNode(t *testing.T) {
 	if !contains(out, `<div class="waxon-flow-node green">Success</div>`) ||
 		!contains(out, `<div class="waxon-flow-node red">Fail</div>`) {
 		t.Errorf("flow palette nodes missing, got %q", out)
+	}
+}
+
+func TestFlowDivider(t *testing.T) {
+	// A lone `/` between boxes marks parallel/alternate paths.
+	input := ":::flow horizontal\n[A] --> [B] / [C]\n:::"
+	out := applyFenceBlocks(input)
+	if contains(out, "waxon-flow error") {
+		t.Fatalf("flow / divider should parse cleanly, got %q", out)
+	}
+	if !contains(out, `<div class="waxon-flow-divider">/</div>`) {
+		t.Errorf("divider element missing, got %q", out)
+	}
+	// All three boxes should still be present.
+	for _, n := range []string{"A", "B", "C"} {
+		if !contains(out, `<div class="waxon-flow-node">`+n+`</div>`) {
+			t.Errorf("flow node %q missing, got %q", n, out)
+		}
 	}
 }
 

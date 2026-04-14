@@ -234,11 +234,17 @@ panel. Works without a server.
 
 			fmt.Fprintf(cmd.OutOrStdout(), "%s Exporting to %s...\n", info.Sprint("→"), bold.Sprint(output))
 
+			deckDir, err := filepath.Abs(filepath.Dir(args[0]))
+			if err != nil {
+				return fmt.Errorf("resolve deck dir: %w", err)
+			}
+
 			if format_ == "html" {
 				if err := pdf.ExportHTML(deck, pdf.HTMLOptions{
 					Output:        output,
 					ThemeOverride: theme,
 					IncludeNotes:  notes,
+					DeckDir:       deckDir,
 				}); err != nil {
 					return err
 				}
@@ -248,6 +254,7 @@ panel. Works without a server.
 					ThemeOverride: theme,
 					Variant:       variant,
 					Pages:         pages,
+					DeckDir:       deckDir,
 				}); err != nil {
 					return err
 				}

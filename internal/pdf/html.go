@@ -14,6 +14,7 @@ type HTMLOptions struct {
 	Output        string // Output file path
 	ThemeOverride string // Override theme from frontmatter
 	IncludeNotes  bool   // Bundle speaker notes into the export
+	DeckDir       string // Directory of the source .slides file (for relative theme paths)
 }
 
 // ExportHTML renders a deck to a single self-contained HTML file that uses
@@ -29,6 +30,7 @@ func ExportHTML(deck *format.Deck, opts HTMLOptions) error {
 		ThemeOverride: theme,
 		Standalone:    true,
 		IncludeNotes:  opts.IncludeNotes,
+		DeckDir:       opts.DeckDir,
 	})
 	if err != nil {
 		return fmt.Errorf("render HTML: %w", err)

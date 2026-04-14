@@ -187,7 +187,13 @@ func buildSlide(index int, raw string) Slide {
 // each fence type. The opening marker on a line decides which transform
 // handles the block.
 func applyFenceBlocks(content string) string {
-	lines := strings.Split(content, "\n")
+	return strings.Join(applyFenceBlocksToLines(strings.Split(content, "\n")), "\n")
+}
+
+// applyFenceBlocksToLines is the line-level fence transform used by both
+// the top-level slide content pass and by fence handlers that need to
+// process nested fences inside their body (e.g. :::stat inside :::grid).
+func applyFenceBlocksToLines(lines []string) []string {
 	var out []string
 	i := 0
 	for i < len(lines) {
@@ -218,7 +224,7 @@ func applyFenceBlocks(content string) string {
 		out = append(out, block...)
 		i += 1 + consumed
 	}
-	return strings.Join(out, "\n")
+	return out
 }
 
 // splitFenceOpener parses ":::name arg1 arg2" into its name and argument
@@ -245,15 +251,23 @@ func splitFenceOpener(line string) (name, args string) {
 // lines it consumed (including the closing :::).
 type fenceHandler func(args string, lines []string) (block []string, consumed int, err error)
 
-var fenceHandlers = map[string]fenceHandler{
-	"compare":   handleCompareFence,
-	"card":      handleCardFence,
-	"card-left": handleCardLeftFence,
-	"grid":      handleGridFence,
-	"flow":      handleFlowFence,
-	"timeline":  handleTimelineFence,
-	"quote":     handleQuoteFence,
-	"stat":      handleStatFence,
+// fenceHandlers is populated in init() because wrapBlock → applyFenceBlocksToLines
+// needs to read this map, and the handlers stored in it call wrapBlock —
+// Go's package-level init analysis rejects a cycle through a var literal,
+// so we break it by deferring the assignment.
+var fenceHandlers map[string]fenceHandler
+
+func init() {
+	fenceHandlers = map[string]fenceHandler{
+		"compare":   handleCompareFence,
+		"card":      handleCardFence,
+		"card-left": handleCardLeftFence,
+		"grid":      handleGridFence,
+		"flow":      handleFlowFence,
+		"timeline":  handleTimelineFence,
+		"quote":     handleQuoteFence,
+		"stat":      handleStatFence,
+	}
 }
 
 // splitVariants separates main slide content from ---variant: sections.
@@ -338,12 +352,20 @@ func extractDirectives(content string) (cleaned string, notes, aiNotes []string,
 }
 
 // parseSlideOpts parses "bg=#fff, class=centered" into SlideOpts.
+// It also accepts bare tokens (no `key=` prefix) as class shorthands —
+// e.g. `<!-- slide: no-chrome -->` is equivalent to `class=no-chrome`.
+// Multiple bare tokens are concatenated space-separated.
 func parseSlideOpts(raw string) *SlideOpts {
 	opts := &SlideOpts{}
+	var extraClasses []string
 	for pair := range strings.SplitSeq(raw, ",") {
 		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
 		parts := strings.SplitN(pair, "=", 2)
 		if len(parts) != 2 {
+			extraClasses = append(extraClasses, pair)
 			continue
 		}
 		key := strings.TrimSpace(parts[0])
@@ -353,6 +375,13 @@ func parseSlideOpts(raw string) *SlideOpts {
 			opts.Background = val
 		case "class":
 			opts.Class = val
+		}
+	}
+	if len(extraClasses) > 0 {
+		if opts.Class == "" {
+			opts.Class = strings.Join(extraClasses, " ")
+		} else {
+			opts.Class = opts.Class + " " + strings.Join(extraClasses, " ")
 		}
 	}
 	if opts.Background == "" && opts.Class == "" {
@@ -400,17 +429,37 @@ func readFenceSections(fenceName string, lines []string) ([]fenceSection, int, e
 	current := fenceSection{name: ""}
 	consumed := 0
 	closed := false
+	// depth tracks nested ::: fences inside this one so `:::stat` inside
+	// `:::grid` / `::col` doesn't terminate the outer grid on its closing
+	// `:::`. Inner section markers (`::col`) only apply at depth 0.
+	depth := 0
 	for i, line := range lines {
 		consumed = i + 1
 		trimmed := strings.TrimSpace(line)
 		if trimmed == ":::" {
-			closed = true
-			break
+			if depth == 0 {
+				closed = true
+				break
+			}
+			depth--
+			current.body = append(current.body, line)
+			continue
 		}
 		if strings.HasPrefix(trimmed, ":::") {
-			return nil, consumed, fmt.Errorf("nested ::: fence is not supported")
+			// Opening of a nested fence — only count it as nesting if
+			// it is a recognized fence name, so an unrelated `:::foo`
+			// that would otherwise pass through as literal text doesn't
+			// throw our depth tracking off.
+			name, _ := splitFenceOpener(trimmed)
+			if _, ok := fenceHandlers[name]; ok {
+				depth++
+				current.body = append(current.body, line)
+				continue
+			}
+			current.body = append(current.body, line)
+			continue
 		}
-		if strings.HasPrefix(trimmed, "::") && !strings.HasPrefix(trimmed, ":::") {
+		if depth == 0 && strings.HasPrefix(trimmed, "::") {
 			// Flush current section if it has anything (body or non-empty name).
 			if current.name != "" || len(current.body) > 0 {
 				sections = append(sections, current)
@@ -462,8 +511,11 @@ func paletteClass(hint string) string {
 
 // wrapBlock emits a `<div class="cls">` ... `</div>` wrapper around the
 // given body lines, with blank lines inserted at the edges so goldmark
-// parses the interior as markdown rather than as raw HTML.
+// parses the interior as markdown rather than as raw HTML. The body is
+// recursively passed through the fence transform so nested fences
+// (e.g. :::stat inside a :::grid ::col) get processed.
 func wrapBlock(cls string, body []string) []string {
+	body = applyFenceBlocksToLines(body)
 	out := []string{fmt.Sprintf(`<div class="%s">`, cls), ""}
 	out = append(out, trimBlankEdges(body)...)
 	out = append(out, "", `</div>`)
@@ -643,14 +695,19 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 			`<div class="%s">%s</div>`, nodeClasses, htmlEscape(node.text),
 		))
 		if i < len(arrows) {
-			arrowClass := "waxon-flow-arrow"
-			if arrows[i] == "dashed" {
-				arrowClass += " waxon-flow-arrow-dashed"
+			switch arrows[i] {
+			case "divider":
+				out = append(out, `<div class="waxon-flow-divider">/</div>`)
+			default:
+				arrowClass := "waxon-flow-arrow"
+				if arrows[i] == "dashed" {
+					arrowClass += " waxon-flow-arrow-dashed"
+				}
+				glyph := flowArrowGlyph(orientation)
+				out = append(out, fmt.Sprintf(
+					`<div class="%s">%s</div>`, arrowClass, glyph,
+				))
 			}
-			glyph := flowArrowGlyph(orientation)
-			out = append(out, fmt.Sprintf(
-				`<div class="%s">%s</div>`, arrowClass, glyph,
-			))
 		}
 	}
 	out = append(out, `</div>`)
@@ -700,6 +757,13 @@ func parseFlowBody(lines []string) ([]flowNode, []string, error) {
 				if ok {
 					arrows = append(arrows, arrowKind)
 					i = end
+					continue
+				}
+				// A lone `/` between boxes marks parallel/alternate paths
+				// (e.g. `[A] --> [B] / [C]`). Renders as a plain divider.
+				if text[i] == '/' {
+					arrows = append(arrows, "divider")
+					i++
 					continue
 				}
 				return nil, nil, fmt.Errorf("flow: unexpected %q at column %d", string(text[i]), i)

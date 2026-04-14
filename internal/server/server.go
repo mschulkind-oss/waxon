@@ -195,6 +195,7 @@ func (s *Server) reload() error {
 			ThemeOverride: s.cfg.ThemeOverride,
 			DeckPath:      rel,
 			Decks:         summaries,
+			DeckDir:       filepath.Dir(entry.absPath),
 		})
 		if err != nil {
 			s.logger.Printf("render %s: %v", rel, err)
@@ -247,6 +248,7 @@ func (s *Server) reloadDeck(relPath string) error {
 		ThemeOverride: s.cfg.ThemeOverride,
 		DeckPath:      relPath,
 		Decks:         summaries,
+		DeckDir:       filepath.Dir(entry.absPath),
 	})
 	if err != nil {
 		return fmt.Errorf("render %s: %w", relPath, err)

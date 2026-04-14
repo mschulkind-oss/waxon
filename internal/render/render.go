@@ -6,6 +6,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"html/template"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/mschulkind-oss/waxon/internal/format"
@@ -43,6 +46,10 @@ type Options struct {
 	// IncludeNotes, when true in an export, bundles speaker notes into the
 	// rendered output so the viewer can open them alongside each slide.
 	IncludeNotes bool
+
+	// DeckDir is the filesystem directory of the .slides file being rendered.
+	// It's used to resolve relative theme paths in `theme: ./foo.css`.
+	DeckDir string
 }
 
 // DeckSummary is a lightweight reference to a deck on the same server.
@@ -92,6 +99,15 @@ func RenderHTML(deck *format.Deck, opts Options) (string, error) {
 		themeOverridden = true
 	}
 
+	var themeCSSInline template.CSS
+	if isThemePath(theme) {
+		css, err := resolveThemePath(theme, opts.DeckDir)
+		if err != nil {
+			return "", err
+		}
+		themeCSSInline = css
+	}
+
 	jsDeck, err := buildJSDeck(deck)
 	if err != nil {
 		return "", err
@@ -137,6 +153,8 @@ func RenderHTML(deck *format.Deck, opts Options) (string, error) {
 		Transition:      deck.Meta.Transition,
 		TerminalVariant: deck.Meta.TerminalVariant,
 		TerminalEffects: deck.Meta.TerminalEffects,
+		ThemeCSSInline:  themeCSSInline,
+		Fonts:           deck.Meta.Fonts,
 		DeckJSON:        template.JS(jsDeckJSON),
 		DecksJSON:       template.JS(decksJSON),
 		StateJSON:       template.JS(stateJSON),
@@ -249,17 +267,73 @@ type templateData struct {
 	Transition      string
 	TerminalVariant string
 	TerminalEffects bool
-	DeckJSON        template.JS
-	DecksJSON       template.JS
-	StateJSON       template.JS
-	ThemesJSON      template.JS
-	TotalSlides     int
+	// ThemeCSSInline, when non-empty, overrides the built-in theme lookup
+	// with raw CSS loaded from disk. Used by `theme: ./foo.css` paths.
+	ThemeCSSInline template.CSS
+	Fonts          []string
+	DeckJSON       template.JS
+	DecksJSON      template.JS
+	StateJSON      template.JS
+	ThemesJSON     template.JS
+	TotalSlides    int
 }
 
 // ThemeCSS returns the CSS for a given theme name.
 // The themes package replaces this at init time.
 var ThemeCSS = func(theme string) template.CSS {
 	return ""
+}
+
+// isThemePath reports whether a theme value looks like a relative path
+// to a .css file rather than a bare theme name. We only recognize .css
+// suffixes so a theme named `foo` is never misinterpreted.
+func isThemePath(theme string) bool {
+	return strings.HasSuffix(theme, ".css")
+}
+
+// resolveThemePath loads the CSS file referenced by a `theme: ./foo.css`
+// frontmatter value, resolved relative to deckDir. Returns (css, nil) on
+// success, or ("", err) if deckDir is empty, the path escapes deckDir,
+// or the file can't be read. Absolute paths are rejected.
+func resolveThemePath(theme, deckDir string) (template.CSS, error) {
+	if deckDir == "" {
+		return "", fmt.Errorf("theme %q is a path but no deck directory is set", theme)
+	}
+	if filepath.IsAbs(theme) {
+		return "", fmt.Errorf("theme path %q must be relative to the deck", theme)
+	}
+	clean := filepath.Clean(filepath.FromSlash(theme))
+	full := filepath.Join(deckDir, clean)
+	data, err := os.ReadFile(full)
+	if err != nil {
+		return "", fmt.Errorf("read theme %s: %w", theme, err)
+	}
+	return template.CSS(expandBuiltinImports(string(data))), nil
+}
+
+// builtinImportRe matches `@import "builtin:<name>";` or `@import 'builtin:<name>';`.
+// Whitespace around the directive and a trailing semicolon are tolerated.
+var builtinImportRe = regexp.MustCompile(`(?m)^[ \t]*@import[ \t]+["']builtin:([a-zA-Z0-9_-]+)["'][ \t]*;?[ \t]*$`)
+
+// expandBuiltinImports replaces `@import "builtin:<name>";` lines in a
+// custom theme CSS body with the full CSS of the built-in theme named
+// <name>. An unknown built-in is replaced with a CSS comment so the user
+// can see what went wrong in the rendered output. This preprocessing
+// happens once at render time; the custom theme can still add its own
+// rules after the import block.
+func expandBuiltinImports(css string) string {
+	return builtinImportRe.ReplaceAllStringFunc(css, func(match string) string {
+		m := builtinImportRe.FindStringSubmatch(match)
+		if len(m) != 2 {
+			return match
+		}
+		name := m[1]
+		body := ThemeCSS(name)
+		if body == "" {
+			return fmt.Sprintf("/* @import builtin:%s — unknown theme */", name)
+		}
+		return string(body)
+	})
 }
 
 // ThemeEntry is a lightweight view of a theme for the picker panel.
@@ -289,22 +363,35 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 		theme = opts.ThemeOverride
 	}
 
+	var themeCSSInline template.CSS
+	if isThemePath(theme) {
+		css, err := resolveThemePath(theme, opts.DeckDir)
+		if err != nil {
+			return "", err
+		}
+		themeCSSInline = css
+	}
+
 	type printSlide struct {
 		Index int
 		ID    string
+		Class string
+		Bg    string
 		HTML  template.HTML
 	}
 	slides := make([]printSlide, 0, len(deck.Slides))
 	for i, s := range deck.Slides {
 		body := s.Content
-		// Future: if opts.Variant is set and matches a variant on this
-		// slide, swap to that variant body. We don't have opts.Variant on
-		// the render.Options yet — kept as a hook for the exporter.
 		html, err := RenderSlideHTML(body)
 		if err != nil {
 			return "", err
 		}
-		slides = append(slides, printSlide{Index: i, ID: s.ID, HTML: template.HTML(html)})
+		ps := printSlide{Index: i, ID: s.ID, HTML: template.HTML(html)}
+		if s.SlideOpts != nil {
+			ps.Class = s.SlideOpts.Class
+			ps.Bg = s.SlideOpts.Background
+		}
+		slides = append(slides, ps)
 	}
 
 	data := struct {
@@ -314,6 +401,8 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 		TerminalVariant string
 		TerminalEffects bool
 		Footer          string
+		ThemeCSSInline  template.CSS
+		Fonts           []string
 		Slides          []printSlide
 	}{
 		Title:           deck.Meta.Title,
@@ -322,6 +411,8 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 		TerminalVariant: deck.Meta.TerminalVariant,
 		TerminalEffects: deck.Meta.TerminalEffects,
 		Footer:          deck.Meta.Footer,
+		ThemeCSSInline:  themeCSSInline,
+		Fonts:           deck.Meta.Fonts,
 		Slides:          slides,
 	}
 
@@ -565,15 +656,15 @@ html, body {
 /* Pause / progressive reveal: hide everything inside .slide that has the
  * .waxon-hidden class. JS adds/removes this on direct children at every
  * pause boundary so '<!-- pause -->' authors get progressive reveal. */
-.slide .waxon-hidden { visibility: hidden; }
+:where(.slide) .waxon-hidden { visibility: hidden; }
 
 /* The parser replaces <!-- pause --> directives with this sentinel so the
  * renderer knows *where* the pauses were. It's a marker only — never visible.
  * goldmark treats the sentinel div as a block element, which splits any
  * enclosing <ul>/<ol> into segments at the pause boundary; re-tighten the
  * vertical spacing so progressively revealed lists look continuous. */
-.slide .waxon-pause { display: none; }
-.slide .waxon-pause + ul, .slide .waxon-pause + ol { margin-top: -0.3em; }
+:where(.slide) .waxon-pause { display: none; }
+:where(.slide) .waxon-pause + ul, :where(.slide) .waxon-pause + ol { margin-top: -0.3em; }
 
 /* ---------- Color palette utility classes ----------
  * Emitted by the parser's .color{text} and .color text transforms. Themes
@@ -591,36 +682,36 @@ html, body {
  * side, stacking to a single column below 700px so the split doesn't
  * compress to illegibility on narrow screens. Border color uses the
  * palette class on the pane itself (.red / .green / etc.) via currentColor. */
-.slide .waxon-compare {
+:where(.slide) .waxon-compare {
   display: flex;
   flex-direction: row;
   gap: 1.5em;
   margin: 1em 0;
   align-items: stretch;
 }
-.slide .waxon-compare-pane {
+:where(.slide) .waxon-compare-pane {
   flex: 1 1 0;
   padding: 1em 1.2em;
   border: 2px solid currentColor;
   border-radius: 6px;
   color: var(--slide-fg);
 }
-.slide .waxon-compare-pane.red    { border-color: var(--color-red,    #ef4444); }
-.slide .waxon-compare-pane.green  { border-color: var(--color-green,  #22c55e); }
-.slide .waxon-compare-pane.yellow { border-color: var(--color-yellow, #eab308); }
-.slide .waxon-compare-pane.blue   { border-color: var(--color-blue,   #3b82f6); }
-.slide .waxon-compare-pane.aqua   { border-color: var(--color-aqua,   #06b6d4); }
-.slide .waxon-compare-pane h1,
-.slide .waxon-compare-pane h2,
-.slide .waxon-compare-pane h3 { margin-top: 0; }
+:where(.slide) .waxon-compare-pane.red    { border-color: var(--color-red,    #ef4444); }
+:where(.slide) .waxon-compare-pane.green  { border-color: var(--color-green,  #22c55e); }
+:where(.slide) .waxon-compare-pane.yellow { border-color: var(--color-yellow, #eab308); }
+:where(.slide) .waxon-compare-pane.blue   { border-color: var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-compare-pane.aqua   { border-color: var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-compare-pane h1,
+:where(.slide) .waxon-compare-pane h2,
+:where(.slide) .waxon-compare-pane h3 { margin-top: 0; }
 @media (max-width: 700px) {
-  .slide .waxon-compare { flex-direction: column; }
+  :where(.slide) .waxon-compare { flex-direction: column; }
 }
 
 /* ---------- Parse error banner ----------
  * Visible block the parser emits when it can't process a fenced block
  * (e.g. nested :::compare). Authors see exactly where the failure is. */
-.slide .waxon-error {
+:where(.slide) .waxon-error {
   background: color-mix(in srgb, #ef4444 20%, transparent);
   color: #fca5a5;
   border: 1px solid #ef4444;
@@ -634,98 +725,104 @@ html, body {
  * :::card / :::card <color> / :::card-left. A bordered container for a
  * title + metric + subtitle. Left-border variant drops the full border
  * for a blockquote-like affordance. */
-.slide .waxon-card {
+:where(.slide) .waxon-card {
   border: 1px solid var(--foreground2, currentColor);
   border-radius: 6px;
   padding: 0.8em 1.2em;
   margin: 0.8em 0;
   color: var(--slide-fg);
 }
-.slide .waxon-card.red    { border-color: var(--color-red,    #ef4444); }
-.slide .waxon-card.green  { border-color: var(--color-green,  #22c55e); }
-.slide .waxon-card.yellow { border-color: var(--color-yellow, #eab308); }
-.slide .waxon-card.blue   { border-color: var(--color-blue,   #3b82f6); }
-.slide .waxon-card.aqua   { border-color: var(--color-aqua,   #06b6d4); }
-.slide .waxon-card > :first-child { margin-top: 0; }
-.slide .waxon-card > :last-child  { margin-bottom: 0; }
-.slide .waxon-card-left {
+:where(.slide) .waxon-card.red    { border-color: var(--color-red,    #ef4444); }
+:where(.slide) .waxon-card.green  { border-color: var(--color-green,  #22c55e); }
+:where(.slide) .waxon-card.yellow { border-color: var(--color-yellow, #eab308); }
+:where(.slide) .waxon-card.blue   { border-color: var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-card.aqua   { border-color: var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-card > :first-child { margin-top: 0; }
+:where(.slide) .waxon-card > :last-child  { margin-bottom: 0; }
+:where(.slide) .waxon-card-left {
   border: none;
   border-left: 4px solid var(--foreground2, currentColor);
   border-radius: 0;
   padding-left: 1em;
 }
-.slide .waxon-card-left.red    { border-left-color: var(--color-red,    #ef4444); }
-.slide .waxon-card-left.green  { border-left-color: var(--color-green,  #22c55e); }
-.slide .waxon-card-left.yellow { border-left-color: var(--color-yellow, #eab308); }
-.slide .waxon-card-left.blue   { border-left-color: var(--color-blue,   #3b82f6); }
-.slide .waxon-card-left.aqua   { border-left-color: var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-card-left.red    { border-left-color: var(--color-red,    #ef4444); }
+:where(.slide) .waxon-card-left.green  { border-left-color: var(--color-green,  #22c55e); }
+:where(.slide) .waxon-card-left.yellow { border-left-color: var(--color-yellow, #eab308); }
+:where(.slide) .waxon-card-left.blue   { border-left-color: var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-card-left.aqua   { border-left-color: var(--color-aqua,   #06b6d4); }
 
 /* ---------- Grid layout ----------
  * :::grid 3 / :::grid 2x2. Uses inline grid-template-columns from the
  * parser so the number of columns isn't baked into CSS. */
-.slide .waxon-grid {
+:where(.slide) .waxon-grid {
   display: grid;
   gap: 1em;
   margin: 1em 0;
 }
-.slide .waxon-grid-cell {
+:where(.slide) .waxon-grid-cell {
   padding: 0.8em 1em;
   border: 1px solid var(--foreground2, currentColor);
   border-radius: 6px;
 }
-.slide .waxon-grid-cell.red    { border-color: var(--color-red,    #ef4444); }
-.slide .waxon-grid-cell.green  { border-color: var(--color-green,  #22c55e); }
-.slide .waxon-grid-cell.yellow { border-color: var(--color-yellow, #eab308); }
-.slide .waxon-grid-cell.blue   { border-color: var(--color-blue,   #3b82f6); }
-.slide .waxon-grid-cell.aqua   { border-color: var(--color-aqua,   #06b6d4); }
-.slide .waxon-grid-cell > :first-child { margin-top: 0; }
-.slide .waxon-grid-cell > :last-child  { margin-bottom: 0; }
+:where(.slide) .waxon-grid-cell.red    { border-color: var(--color-red,    #ef4444); }
+:where(.slide) .waxon-grid-cell.green  { border-color: var(--color-green,  #22c55e); }
+:where(.slide) .waxon-grid-cell.yellow { border-color: var(--color-yellow, #eab308); }
+:where(.slide) .waxon-grid-cell.blue   { border-color: var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-grid-cell.aqua   { border-color: var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-grid-cell > :first-child { margin-top: 0; }
+:where(.slide) .waxon-grid-cell > :last-child  { margin-bottom: 0; }
 
 /* ---------- Flow diagrams ----------
  * :::flow horizontal / :::flow vertical. Linear chain of boxes with
  * arrow glyphs between them. Branching and labeled arrows are not yet
  * supported — authors with those needs still reach for raw HTML. */
-.slide .waxon-flow {
+:where(.slide) .waxon-flow {
   display: flex;
   gap: 0.6em;
   align-items: center;
   margin: 1em 0;
   flex-wrap: wrap;
 }
-.slide .waxon-flow-vertical {
+:where(.slide) .waxon-flow-vertical {
   flex-direction: column;
   align-items: stretch;
 }
-.slide .waxon-flow-node {
+:where(.slide) .waxon-flow-node {
   padding: 0.6em 1em;
   border: 2px solid currentColor;
   border-radius: 4px;
   font-family: var(--font-mono);
   white-space: nowrap;
 }
-.slide .waxon-flow-node.red    { border-color: var(--color-red,    #ef4444); color: var(--color-red,    #ef4444); }
-.slide .waxon-flow-node.green  { border-color: var(--color-green,  #22c55e); color: var(--color-green,  #22c55e); }
-.slide .waxon-flow-node.yellow { border-color: var(--color-yellow, #eab308); color: var(--color-yellow, #eab308); }
-.slide .waxon-flow-node.blue   { border-color: var(--color-blue,   #3b82f6); color: var(--color-blue,   #3b82f6); }
-.slide .waxon-flow-node.aqua   { border-color: var(--color-aqua,   #06b6d4); color: var(--color-aqua,   #06b6d4); }
-.slide .waxon-flow-arrow {
+:where(.slide) .waxon-flow-node.red    { border-color: var(--color-red,    #ef4444); color: var(--color-red,    #ef4444); }
+:where(.slide) .waxon-flow-node.green  { border-color: var(--color-green,  #22c55e); color: var(--color-green,  #22c55e); }
+:where(.slide) .waxon-flow-node.yellow { border-color: var(--color-yellow, #eab308); color: var(--color-yellow, #eab308); }
+:where(.slide) .waxon-flow-node.blue   { border-color: var(--color-blue,   #3b82f6); color: var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-flow-node.aqua   { border-color: var(--color-aqua,   #06b6d4); color: var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-flow-arrow {
   font-size: 1.6em;
   opacity: 0.6;
   padding: 0 0.2em;
 }
-.slide .waxon-flow-arrow-dashed { opacity: 0.4; font-style: italic; }
+:where(.slide) .waxon-flow-arrow-dashed { opacity: 0.4; font-style: italic; }
+:where(.slide) .waxon-flow-divider {
+  font-size: 1.6em;
+  opacity: 0.5;
+  padding: 0 0.4em;
+  font-family: var(--font-mono);
+}
 
 /* ---------- Timeline ----------
  * :::timeline horizontal / :::timeline vertical with :: entries. Each
  * entry gets a dot marker and label above its content body. */
-.slide .waxon-timeline {
+:where(.slide) .waxon-timeline {
   display: flex;
   gap: 1.2em;
   margin: 1em 0;
 }
-.slide .waxon-timeline-horizontal { flex-direction: row; flex-wrap: wrap; }
-.slide .waxon-timeline-vertical   { flex-direction: column; }
-.slide .waxon-timeline-entry {
+:where(.slide) .waxon-timeline-horizontal { flex-direction: row; flex-wrap: wrap; }
+:where(.slide) .waxon-timeline-vertical   { flex-direction: column; }
+:where(.slide) .waxon-timeline-entry {
   flex: 1 1 0;
   display: flex;
   flex-direction: column;
@@ -733,58 +830,58 @@ html, body {
   position: relative;
   padding-top: 0.8em;
 }
-.slide .waxon-timeline-horizontal .waxon-timeline-entry {
+:where(.slide) .waxon-timeline-horizontal .waxon-timeline-entry {
   border-top: 2px solid var(--foreground2, currentColor);
 }
-.slide .waxon-timeline-vertical .waxon-timeline-entry {
+:where(.slide) .waxon-timeline-vertical .waxon-timeline-entry {
   border-left: 2px solid var(--foreground2, currentColor);
   padding-left: 1em;
   padding-top: 0;
 }
-.slide .waxon-timeline-marker {
+:where(.slide) .waxon-timeline-marker {
   position: absolute;
   width: 10px;
   height: 10px;
   border-radius: 50%;
   background: var(--accent, currentColor);
 }
-.slide .waxon-timeline-horizontal .waxon-timeline-marker {
+:where(.slide) .waxon-timeline-horizontal .waxon-timeline-marker {
   top: -6px;
   left: 0;
 }
-.slide .waxon-timeline-vertical .waxon-timeline-marker {
+:where(.slide) .waxon-timeline-vertical .waxon-timeline-marker {
   top: 0;
   left: -6px;
 }
-.slide .waxon-timeline-label {
+:where(.slide) .waxon-timeline-label {
   font-family: var(--font-mono);
   font-weight: 600;
   font-size: 0.9em;
 }
-.slide .waxon-timeline-label.red    { color: var(--color-red,    #ef4444); }
-.slide .waxon-timeline-label.green  { color: var(--color-green,  #22c55e); }
-.slide .waxon-timeline-label.yellow { color: var(--color-yellow, #eab308); }
-.slide .waxon-timeline-label.blue   { color: var(--color-blue,   #3b82f6); }
-.slide .waxon-timeline-label.aqua   { color: var(--color-aqua,   #06b6d4); }
-.slide .waxon-timeline-body > :first-child { margin-top: 0; }
-.slide .waxon-timeline-body > :last-child  { margin-bottom: 0; }
+:where(.slide) .waxon-timeline-label.red    { color: var(--color-red,    #ef4444); }
+:where(.slide) .waxon-timeline-label.green  { color: var(--color-green,  #22c55e); }
+:where(.slide) .waxon-timeline-label.yellow { color: var(--color-yellow, #eab308); }
+:where(.slide) .waxon-timeline-label.blue   { color: var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-timeline-label.aqua   { color: var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-timeline-body > :first-child { margin-top: 0; }
+:where(.slide) .waxon-timeline-body > :last-child  { margin-bottom: 0; }
 
 /* ---------- Quote block ----------
  * :::quote with optional ::by attribution. Theme-aware border color. */
-.slide .waxon-quote {
+:where(.slide) .waxon-quote {
   border-left: 4px solid var(--accent, currentColor);
   padding: 0.4em 1em;
   margin: 1em 0;
   font-style: italic;
   font-size: 1.1em;
 }
-.slide .waxon-quote.red    { border-left-color: var(--color-red,    #ef4444); }
-.slide .waxon-quote.green  { border-left-color: var(--color-green,  #22c55e); }
-.slide .waxon-quote.yellow { border-left-color: var(--color-yellow, #eab308); }
-.slide .waxon-quote.blue   { border-left-color: var(--color-blue,   #3b82f6); }
-.slide .waxon-quote.aqua   { border-left-color: var(--color-aqua,   #06b6d4); }
-.slide .waxon-quote > :first-child { margin-top: 0; }
-.slide .waxon-quote-by {
+:where(.slide) .waxon-quote.red    { border-left-color: var(--color-red,    #ef4444); }
+:where(.slide) .waxon-quote.green  { border-left-color: var(--color-green,  #22c55e); }
+:where(.slide) .waxon-quote.yellow { border-left-color: var(--color-yellow, #eab308); }
+:where(.slide) .waxon-quote.blue   { border-left-color: var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-quote.aqua   { border-left-color: var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-quote > :first-child { margin-top: 0; }
+:where(.slide) .waxon-quote-by {
   margin-top: 0.4em;
   font-size: 0.8em;
   font-style: normal;
@@ -793,28 +890,28 @@ html, body {
 
 /* ---------- Stat block ----------
  * :::stat <color> with ::label / ::context. Big centered number. */
-.slide .waxon-stat {
+:where(.slide) .waxon-stat {
   text-align: center;
   margin: 1.2em 0;
   padding: 0.5em 0;
 }
-.slide .waxon-stat-number {
+:where(.slide) .waxon-stat-number {
   font-size: 4em;
   font-weight: 700;
   line-height: 1;
   font-family: var(--font-mono);
 }
-.slide .waxon-stat.red    .waxon-stat-number { color: var(--color-red,    #ef4444); }
-.slide .waxon-stat.green  .waxon-stat-number { color: var(--color-green,  #22c55e); }
-.slide .waxon-stat.yellow .waxon-stat-number { color: var(--color-yellow, #eab308); }
-.slide .waxon-stat.blue   .waxon-stat-number { color: var(--color-blue,   #3b82f6); }
-.slide .waxon-stat.aqua   .waxon-stat-number { color: var(--color-aqua,   #06b6d4); }
-.slide .waxon-stat-label {
+:where(.slide) .waxon-stat.red    .waxon-stat-number { color: var(--color-red,    #ef4444); }
+:where(.slide) .waxon-stat.green  .waxon-stat-number { color: var(--color-green,  #22c55e); }
+:where(.slide) .waxon-stat.yellow .waxon-stat-number { color: var(--color-yellow, #eab308); }
+:where(.slide) .waxon-stat.blue   .waxon-stat-number { color: var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-stat.aqua   .waxon-stat-number { color: var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-stat-label {
   font-size: 1.1em;
   margin-top: 0.2em;
   opacity: 0.85;
 }
-.slide .waxon-stat-context {
+:where(.slide) .waxon-stat-context {
   font-size: 0.8em;
   margin-top: 0.4em;
   opacity: 0.6;
@@ -824,7 +921,7 @@ html, body {
  * Inline .badge-green{SHIPPED} renders as a rounded pill with a tinted
  * background. The color class is applied alongside .waxon-badge so theme
  * palette vars drive the background. */
-.slide .waxon-badge {
+:where(.slide) .waxon-badge {
   display: inline-block;
   padding: 0.05em 0.5em;
   border-radius: 999px;
@@ -836,16 +933,16 @@ html, body {
   vertical-align: middle;
   line-height: 1.6;
 }
-.slide .waxon-badge.red    { background: color-mix(in srgb, var(--color-red,    #ef4444) 25%, transparent); color: var(--color-red,    #ef4444); border: 1px solid var(--color-red,    #ef4444); }
-.slide .waxon-badge.green  { background: color-mix(in srgb, var(--color-green,  #22c55e) 25%, transparent); color: var(--color-green,  #22c55e); border: 1px solid var(--color-green,  #22c55e); }
-.slide .waxon-badge.yellow { background: color-mix(in srgb, var(--color-yellow, #eab308) 25%, transparent); color: var(--color-yellow, #eab308); border: 1px solid var(--color-yellow, #eab308); }
-.slide .waxon-badge.blue   { background: color-mix(in srgb, var(--color-blue,   #3b82f6) 25%, transparent); color: var(--color-blue,   #3b82f6); border: 1px solid var(--color-blue,   #3b82f6); }
-.slide .waxon-badge.aqua   { background: color-mix(in srgb, var(--color-aqua,   #06b6d4) 25%, transparent); color: var(--color-aqua,   #06b6d4); border: 1px solid var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-badge.red    { background: color-mix(in srgb, var(--color-red,    #ef4444) 25%, transparent); color: var(--color-red,    #ef4444); border: 1px solid var(--color-red,    #ef4444); }
+:where(.slide) .waxon-badge.green  { background: color-mix(in srgb, var(--color-green,  #22c55e) 25%, transparent); color: var(--color-green,  #22c55e); border: 1px solid var(--color-green,  #22c55e); }
+:where(.slide) .waxon-badge.yellow { background: color-mix(in srgb, var(--color-yellow, #eab308) 25%, transparent); color: var(--color-yellow, #eab308); border: 1px solid var(--color-yellow, #eab308); }
+:where(.slide) .waxon-badge.blue   { background: color-mix(in srgb, var(--color-blue,   #3b82f6) 25%, transparent); color: var(--color-blue,   #3b82f6); border: 1px solid var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-badge.aqua   { background: color-mix(in srgb, var(--color-aqua,   #06b6d4) 25%, transparent); color: var(--color-aqua,   #06b6d4); border: 1px solid var(--color-aqua,   #06b6d4); }
 
 /* ---------- Mid-slide horizontal rule ----------
  * The parser emits <hr class="waxon-hr"/> for standalone 4+ dash lines
  * so goldmark doesn't interpret them as setext underlines. */
-.slide .waxon-hr {
+:where(.slide) .waxon-hr {
   border: none;
   border-top: 1px solid var(--foreground2, currentColor);
   opacity: 0.4;
@@ -1365,8 +1462,9 @@ html, body {
 }
 {{end}}
 </style>
-<style id="theme-css">
-{{themeCSS .Theme}}
+{{range .Fonts}}<link rel="stylesheet" href="{{.}}">
+{{end}}<style id="theme-css">
+{{if .ThemeCSSInline}}{{.ThemeCSSInline}}{{else}}{{themeCSS .Theme}}{{end}}
 </style>
 </head>
 <body{{if .Transition}} data-transition="{{.Transition}}"{{end}}>
@@ -1622,9 +1720,19 @@ html, body {
     // on the .slide element. Removing and re-adding the class forces the
     // browser to restart any animation declared on .slide, so each
     // navigation re-plays the effect instead of running it once on load.
-    renderMain.classList.remove('slide');
+    renderMain.className = '';
     void renderMain.offsetWidth;
     renderMain.classList.add('slide');
+    if (view.slide && view.slide.class) {
+      view.slide.class.split(/\s+/).forEach(function(c) {
+        if (c) renderMain.classList.add(c);
+      });
+    }
+    if (view.slide && view.slide.bg) {
+      renderMain.style.background = view.slide.bg;
+    } else {
+      renderMain.style.background = '';
+    }
     if (view.slide && view.slide.id) {
       renderMain.setAttribute('data-slide-id', view.slide.id);
     } else {
@@ -2723,8 +2831,8 @@ html, body {
 /* Progressive-reveal sentinel is never shown — PDF export always displays the
  * full slide content, so the marker is just hidden. Also re-tighten list
  * spacing when goldmark splits a <ul> around the sentinel. */
-.slide .waxon-pause { display: none; }
-.slide .waxon-pause + ul, .slide .waxon-pause + ol { margin-top: -0.3em; }
+:where(.slide) .waxon-pause { display: none; }
+:where(.slide) .waxon-pause + ul, :where(.slide) .waxon-pause + ol { margin-top: -0.3em; }
 
 .footer {
   position: absolute;
@@ -2752,14 +2860,15 @@ html, body {
 }
 {{end}}
 </style>
-<style id="theme-css">
-{{themeCSS .Theme}}
+{{range .Fonts}}<link rel="stylesheet" href="{{.}}">
+{{end}}<style id="theme-css">
+{{if .ThemeCSSInline}}{{.ThemeCSSInline}}{{else}}{{themeCSS .Theme}}{{end}}
 </style>
 </head>
 <body>
 <div class="deck"{{if .Transition}} data-transition="{{.Transition}}"{{end}}>
 {{range .Slides}}
-<div class="slide" data-index="{{.Index}}"{{if .ID}} id="{{.ID}}"{{end}}>
+<div class="slide{{if .Class}} {{.Class}}{{end}}" data-index="{{.Index}}"{{if .ID}} id="{{.ID}}"{{end}}{{if .Bg}} style="background: {{.Bg}}"{{end}}>
 {{.HTML}}
 {{if $.Footer}}<div class="footer">{{$.Footer}}</div>{{end}}
 </div>
