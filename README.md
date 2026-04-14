@@ -120,14 +120,17 @@ footer: "Company Name"   # optional persistent footer
 ---
 ```
 
-| Field    | Required | Default    | Description                             |
-|----------|----------|------------|-----------------------------------------|
-| `title`  | yes      | —          | Deck title, shown on the title slide    |
-| `author` | no       | —          | Author name                             |
-| `date`   | no       | —          | Presentation date                       |
-| `theme`  | no       | `default`  | Built-in theme name or path to CSS file |
-| `aspect` | no       | `16:9`     | Slide aspect ratio                      |
-| `footer` | no       | —          | Text shown at the bottom of every slide |
+| Field          | Required | Default    | Description                                                               |
+|----------------|----------|------------|---------------------------------------------------------------------------|
+| `title`        | yes      | —          | Deck title, shown on the title slide                                      |
+| `author`       | no       | —          | Author name                                                               |
+| `date`         | no       | —          | Presentation date                                                         |
+| `theme`        | no       | `default`  | Built-in theme name or path to CSS file                                   |
+| `aspect`       | no       | `16:9`     | Slide aspect ratio                                                        |
+| `footer`       | no       | —          | Centered footer text; supports `{n}`, `{page}`, `{total}` placeholders    |
+| `footer-left`  | no       | —          | Left-aligned footer region (same placeholders)                            |
+| `footer-right` | no       | —          | Right-aligned footer region (same placeholders)                           |
+| `transition`   | no       | —          | Deck-wide transition (`fade`); override per-slide with `<!-- slide: ...`  |
 
 ### Slides
 
@@ -300,6 +303,18 @@ Put two content panes next to each other using a `:::compare` fence:
 
 The color after `::left` / `::right` is a palette class that tints the pane border — handy for before/after, good/bad, old/new comparisons. The color is optional. Panes stack vertically on narrow screens automatically.
 
+Asymmetric layouts are supported via width ratios, per-pane `bg=`/`valign=` modifiers, and a `brackets` decorator for corner-bracket borders:
+
+```markdown
+:::compare 35/65 brackets
+::left bg=#111111 valign=center
+# Left gets 35%
+
+::right bg=#f8f8f8 valign=top
+# Right gets 65%
+:::
+```
+
 ### Slide IDs
 
 Give a slide a stable, URL-addressable name by appending `#name` to its separator:
@@ -336,6 +351,16 @@ Wrap a metric, call-out, or bordered box in a `:::card` fence. The border takes 
 
 Use `:::card-left` for a left-border-only blockquote style. Card bodies are parsed as markdown — headings, lists, and inline color all work inside.
 
+Cards also take size shortcuts (`small`, `medium`, `large`) and a `width=NN%` modifier when you want to constrain a callout to a corner of the slide:
+
+```markdown
+:::card aqua width=30%
+### Data Points
+- 47 documents
+- 12 fields each
+:::
+```
+
 ### Grid Layouts
 
 For three or more columns, or a matrix of cells, reach for `:::grid`:
@@ -367,6 +392,17 @@ Simple box-and-arrow flows use `:::flow`:
 ```
 
 `-->` draws a solid arrow; `-.->` draws a dashed one. Boxes can carry a palette prefix `.color[text]` to tint the box border and text. Orientation is `horizontal` (default) or `vertical`. Branching and labeled arrows are not yet supported — reach for raw HTML for anything beyond a linear chain.
+
+Fence modifiers `wide`, `tall`, and `boxes` produce uniform pipeline-style diagrams. Per-node border accents use the `{border:color}` suffix:
+
+```markdown
+:::flow horizontal wide tall
+[Collection]{border:green} --> [Page Splitting]{border:aqua} --> [Classification]{border:yellow}
+:::
+```
+
+- `wide` — every node gets a uniform minimum width
+- `tall` / `boxes` — every node wraps to multi-line and gets a uniform minimum height so short and long labels render as consistent rectangles
 
 ### Timeline
 
@@ -424,6 +460,57 @@ Inline status badges use a `.badge-color{text}` syntax similar to inline color:
 
 The palette is the same closed set: red, green, yellow, blue, aqua. Pills pull their color from the theme's `--color-*` vars and render with a tinted background and matching border.
 
+### Multi-Column Lists
+
+Flow dense content into newspaper-style columns with `:::columns N`:
+
+```markdown
+:::columns 2
+
+- Alpha
+- Beta
+- Gamma
+- Delta
+- Epsilon
+- Zeta
+
+:::
+```
+
+Each block-level child flows into the next column. Works for anything — lists, paragraphs, cards.
+
+### Footnotes
+
+Add a small, dim annotation anchored below the main slide content with `:::footnote`:
+
+```markdown
+:::footnote
+* Based on a sample of 47 documents — Source: Internal AP metrics
+:::
+```
+
+### Per-Slide Directives
+
+Override deck-level settings for a single slide with a `<!-- slide: ... -->` comment at the top of the slide body. Keys are comma-separated:
+
+```markdown
+<!-- slide: no-chrome, valign=center, bg=#111111 -->
+
+# Thank You
+```
+
+Recognized keys:
+
+| Key          | Value                         | Effect                                               |
+|--------------|-------------------------------|------------------------------------------------------|
+| `bg`         | CSS color                     | Solid slide background                               |
+| `bg-image`   | `url(./pic.png)` etc.         | Background image (covers, center-positioned)        |
+| `class`      | CSS class tokens              | Extra class(es) on `.slide`                          |
+| `valign`     | `top` / `center` / `bottom`   | Vertical placement of slide content                  |
+| `transition` | `fade`                        | Override deck-level transition for this slide only   |
+
+Bare tokens (no `=`) are treated as classes — e.g. `<!-- slide: no-chrome -->` sets `.no-chrome` so themes can drop the chrome (`::before` / `::after`) for a clean cover slide.
+
 ### Mid-Slide Horizontal Rule
 
 Need a visual divider *inside* a slide? A slide separator is exactly three dashes (`---`). For an in-slide rule, use **four or more** dashes, asterisks, or underscores on their own line with a blank line above:
@@ -436,7 +523,18 @@ Above the rule
 Below the rule
 ```
 
-The parser explicitly emits `<hr class="waxon-hr">` for these so goldmark doesn't interpret them as setext heading underlines.
+For dashed or dotted variants, use spaced dashes, dots, or an explicit trailing modifier:
+
+```markdown
+- - - -        ← dashed
+
+....           ← dotted
+
+---- dashed    ← explicit
+---- dotted
+```
+
+The parser emits `<hr class="waxon-hr waxon-hr-dashed">` (or `-dotted`) so themes can target them independently.
 
 ### Slide Transitions
 
@@ -558,15 +656,19 @@ your overrides win without the `.slide` prefix dance.
 
 | Component       | Classes                                                       |
 |-----------------|---------------------------------------------------------------|
-| Grid layout     | `.waxon-grid`, `.waxon-grid-cell` (one per `::col` / `::cell`) |
-| Card            | `.waxon-card`, `.waxon-card-left` (left-border variant)       |
-| Flow diagram    | `.waxon-flow`, `.waxon-flow-horizontal` / `.waxon-flow-vertical`, `.waxon-flow-wide`, `.waxon-flow-node`, `.waxon-flow-arrow`, `.waxon-flow-arrow-dashed`, `.waxon-flow-divider` |
+| Grid layout     | `.waxon-grid`, `.waxon-grid-cell` (one per `::col` / `::cell`); palette class on a cell adds a colored top-border accent |
+| Card            | `.waxon-card`, `.waxon-card-left` (left-border variant); size shortcuts `.waxon-card-small` / `-medium` / `-large`; `--card-color` custom property so card `h1`/`h2`/`h3` auto-tint to the card's palette color |
+| Flow diagram    | `.waxon-flow`, `.waxon-flow-horizontal` / `.waxon-flow-vertical`, `.waxon-flow-wide`, `.waxon-flow-tall`, `.waxon-flow-boxes`, `.waxon-flow-node`, `.waxon-flow-arrow`, `.waxon-flow-arrow-dashed`, `.waxon-flow-divider` |
 | Stat            | `.waxon-stat`, `.waxon-stat-number`, `.waxon-stat-label`, `.waxon-stat-context` |
 | Timeline        | `.waxon-timeline`, `.waxon-timeline-horizontal` / `.waxon-timeline-vertical`, `.waxon-timeline-entry`, `.waxon-timeline-dot`, `.waxon-timeline-label`, `.waxon-timeline-body` |
+| Compare         | `.waxon-compare`, `.waxon-compare-pane`, `.waxon-compare-left` / `-right`; add `brackets` to the fence to get `.waxon-compare-brackets` corner-bracket styling |
+| Columns         | `.waxon-columns` — CSS multi-column container (`:::columns N`) |
+| Footnote        | `.waxon-footnote` — small, dim annotation anchored below content (`:::footnote`) |
 | Badge pill      | `.waxon-badge` + palette class (e.g. `.green`)                |
 | Split panes     | `.waxon-split`, `.waxon-split-left`, `.waxon-split-right`     |
-| Mid-slide rule  | `.waxon-hr`                                                   |
-| Per-slide       | `<!-- slide: no-chrome -->` — theme chrome (`::before`/`::after`) is suppressed when a slide has `.no-chrome` |
+| Mid-slide rule  | `.waxon-hr` + `.waxon-hr-dashed` / `.waxon-hr-dotted`         |
+| Footer regions  | `.footer > .footer-left` / `.footer-center` / `.footer-right` |
+| Per-slide       | `<!-- slide: no-chrome -->` — theme chrome (`::before`/`::after`) is suppressed when a slide has `.no-chrome`. Also `<!-- slide: bg-image=url(...), valign=center, transition=fade -->` |
 
 All palette colors (`red`, `green`, `yellow`, `blue`, `aqua`) apply as
 plain classes on the component root — e.g. `.waxon-grid-cell.aqua` or

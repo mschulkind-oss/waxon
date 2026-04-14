@@ -150,6 +150,8 @@ func RenderHTML(deck *format.Deck, opts Options) (string, error) {
 		Theme:           theme,
 		Aspect:          deck.Meta.Aspect,
 		Footer:          deck.Meta.Footer,
+		FooterLeft:      deck.Meta.FooterLeft,
+		FooterRight:     deck.Meta.FooterRight,
 		Transition:      deck.Meta.Transition,
 		TerminalVariant: deck.Meta.TerminalVariant,
 		TerminalEffects: deck.Meta.TerminalEffects,
@@ -181,16 +183,19 @@ func RenderSlideHTML(content string) (string, error) {
 
 // jsSlide is the per-slide payload sent to the browser.
 type jsSlide struct {
-	Index    int              `json:"index"`
-	ID       string           `json:"id,omitempty"`
-	HTML     string           `json:"html"`
-	Notes    []string         `json:"notes"`
-	AINotes  []string         `json:"aiNotes"`
-	Comments []format.Comment `json:"comments"`
-	Variants []jsVariant      `json:"variants"`
-	Pauses   int              `json:"pauses"`
-	Bg       string           `json:"bg,omitempty"`
-	Class    string           `json:"class,omitempty"`
+	Index      int              `json:"index"`
+	ID         string           `json:"id,omitempty"`
+	HTML       string           `json:"html"`
+	Notes      []string         `json:"notes"`
+	AINotes    []string         `json:"aiNotes"`
+	Comments   []format.Comment `json:"comments"`
+	Variants   []jsVariant      `json:"variants"`
+	Pauses     int              `json:"pauses"`
+	Bg         string           `json:"bg,omitempty"`
+	BgImage    string           `json:"bgImage,omitempty"`
+	Class      string           `json:"class,omitempty"`
+	Valign     string           `json:"valign,omitempty"`
+	Transition string           `json:"transition,omitempty"`
 }
 
 type jsVariant struct {
@@ -220,7 +225,10 @@ func buildJSDeck(deck *format.Deck) ([]jsSlide, error) {
 		}
 		if s.SlideOpts != nil {
 			js.Bg = s.SlideOpts.Background
+			js.BgImage = s.SlideOpts.BgImage
 			js.Class = s.SlideOpts.Class
+			js.Valign = s.SlideOpts.Valign
+			js.Transition = s.SlideOpts.Transition
 		}
 		for _, v := range s.Variants {
 			vhtml, err := RenderSlideHTML(v.Content)
@@ -264,6 +272,8 @@ type templateData struct {
 	Theme           string
 	Aspect          string
 	Footer          string
+	FooterLeft      string
+	FooterRight     string
 	Transition      string
 	TerminalVariant string
 	TerminalEffects bool
@@ -373,11 +383,13 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 	}
 
 	type printSlide struct {
-		Index int
-		ID    string
-		Class string
-		Bg    string
-		HTML  template.HTML
+		Index   int
+		ID      string
+		Class   string
+		Bg      string
+		BgImage string
+		Valign  string
+		HTML    template.HTML
 	}
 	slides := make([]printSlide, 0, len(deck.Slides))
 	for i, s := range deck.Slides {
@@ -390,6 +402,8 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 		if s.SlideOpts != nil {
 			ps.Class = s.SlideOpts.Class
 			ps.Bg = s.SlideOpts.Background
+			ps.BgImage = s.SlideOpts.BgImage
+			ps.Valign = s.SlideOpts.Valign
 		}
 		slides = append(slides, ps)
 	}
@@ -401,6 +415,8 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 		TerminalVariant string
 		TerminalEffects bool
 		Footer          string
+		FooterLeft      string
+		FooterRight     string
 		ThemeCSSInline  template.CSS
 		Fonts           []string
 		Slides          []printSlide
@@ -411,6 +427,8 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 		TerminalVariant: deck.Meta.TerminalVariant,
 		TerminalEffects: deck.Meta.TerminalEffects,
 		Footer:          deck.Meta.Footer,
+		FooterLeft:      deck.Meta.FooterLeft,
+		FooterRight:     deck.Meta.FooterRight,
 		ThemeCSSInline:  themeCSSInline,
 		Fonts:           deck.Meta.Fonts,
 		Slides:          slides,
@@ -456,13 +474,26 @@ func init() {
 	// own init(), which may run after this init() — capturing the bare
 	// variable would lock in the empty stub.
 	themeCSSFn := func(theme string) template.CSS { return ThemeCSS(theme) }
-	pageTmpl = template.Must(template.New("page").Funcs(template.FuncMap{
-		"themeCSS": themeCSSFn,
-	}).Parse(pageTemplate))
+	incFn := func(i int) int { return i + 1 }
+	pageFooterFn := func(tpl string, n, total int) string {
+		if tpl == "" {
+			return ""
+		}
+		r := strings.NewReplacer(
+			"{n}", fmt.Sprintf("%d", n),
+			"{page}", fmt.Sprintf("%d", n),
+			"{total}", fmt.Sprintf("%d", total),
+		)
+		return r.Replace(tpl)
+	}
+	funcs := template.FuncMap{
+		"themeCSS":   themeCSSFn,
+		"inc":        incFn,
+		"pageFooter": pageFooterFn,
+	}
+	pageTmpl = template.Must(template.New("page").Funcs(funcs).Parse(pageTemplate))
 	indexTmpl = template.Must(template.New("index").Parse(indexTemplate))
-	printTmpl = template.Must(template.New("print").Funcs(template.FuncMap{
-		"themeCSS": themeCSSFn,
-	}).Parse(printTemplate))
+	printTmpl = template.Must(template.New("print").Funcs(funcs).Parse(printTemplate))
 }
 
 // MarshalDeckListJSON is a small convenience for callers that want the same
@@ -614,13 +645,17 @@ html, body {
   justify-content: center;
 }
 
-.slide h1 { font-size: 2.5em; font-family: var(--font-heading); color: var(--accent); margin-bottom: 0.5em; }
-.slide h2 { font-size: 1.8em; font-family: var(--font-heading); color: var(--accent); margin-bottom: 0.4em; }
-.slide h3 { font-size: 1.3em; font-family: var(--font-heading); margin-bottom: 0.3em; }
-.slide p { margin-bottom: 0.8em; }
-.slide ul, .slide ol { margin-left: 1.5em; margin-bottom: 0.8em; }
-.slide li { margin-bottom: 0.3em; }
-.slide pre {
+/* Base typography is wrapped in :where() so theme CSS with bare element
+ * selectors wins without needing a .slide prefix (#41). */
+:where(.slide) h1 { font-size: 2.5em; font-family: var(--font-heading); color: var(--accent); margin-bottom: 0.5em; }
+:where(.slide) h2 { font-size: 1.8em; font-family: var(--font-heading); color: var(--accent); margin-bottom: 0.4em; }
+:where(.slide) h3 { font-size: 1.3em; font-family: var(--font-heading); margin-bottom: 0.3em; }
+:where(.slide) p { margin-bottom: 0.8em; }
+:where(.slide) ul, :where(.slide) ol { margin-left: 1.5em; margin-bottom: 0.8em; }
+:where(.slide) li { margin-bottom: 0.3em; }
+/* Ordered list markers inherit accent color by default (#47) */
+:where(.slide) ol > li::marker { color: var(--list-marker-color, var(--accent)); }
+:where(.slide) pre {
   background: color-mix(in srgb, var(--slide-fg) 8%, transparent);
   border: 1px solid color-mix(in srgb, var(--slide-fg) 15%, transparent);
   border-radius: 6px;
@@ -631,27 +666,32 @@ html, body {
   font-size: 0.85em;
   line-height: 1.4;
 }
-.slide code { font-family: var(--font-mono); font-size: 0.9em; }
-.slide :not(pre) > code {
+:where(.slide) code { font-family: var(--font-mono); font-size: 0.9em; }
+:where(.slide) :not(pre) > code {
   background: color-mix(in srgb, var(--slide-fg) 12%, transparent);
   padding: 0.15em 0.4em;
   border-radius: 4px;
 }
-.slide table { border-collapse: collapse; margin-bottom: 1em; }
-.slide th, .slide td {
+:where(.slide) table { border-collapse: collapse; margin-bottom: 1em; }
+:where(.slide) th, :where(.slide) td {
   border: 1px solid color-mix(in srgb, var(--slide-fg) 22%, transparent);
   padding: 0.5em 1em;
   text-align: left;
 }
-.slide th[align], .slide td[align] { text-align: inherit; }
-.slide th { background: color-mix(in srgb, var(--slide-fg) 10%, transparent); font-weight: 600; }
-.slide blockquote {
+:where(.slide) th[align], :where(.slide) td[align] { text-align: inherit; }
+:where(.slide) th { background: color-mix(in srgb, var(--slide-fg) 10%, transparent); font-weight: 600; }
+:where(.slide) blockquote {
   border-left: 4px solid var(--accent);
   padding-left: 1em;
   margin-bottom: 0.8em;
   font-style: italic;
 }
-.slide img { max-width: 100%; max-height: calc(100vh - 16vmin); object-fit: contain; }
+:where(.slide) img { max-width: 100%; max-height: calc(100vh - 16vmin); object-fit: contain; }
+
+/* Slide-level vertical alignment (#49, #54) */
+.slide[data-valign="top"] { justify-content: flex-start; }
+.slide[data-valign="center"], .slide[data-valign="middle"] { justify-content: center; }
+.slide[data-valign="bottom"] { justify-content: flex-end; }
 
 /* Pause / progressive reveal: hide everything inside .slide that has the
  * .waxon-hidden class. JS adds/removes this on direct children at every
@@ -732,13 +772,21 @@ html, body {
   margin: 0.8em 0;
   color: var(--slide-fg);
 }
-:where(.slide) .waxon-card.red    { border-color: var(--color-red,    #ef4444); }
-:where(.slide) .waxon-card.green  { border-color: var(--color-green,  #22c55e); }
-:where(.slide) .waxon-card.yellow { border-color: var(--color-yellow, #eab308); }
-:where(.slide) .waxon-card.blue   { border-color: var(--color-blue,   #3b82f6); }
-:where(.slide) .waxon-card.aqua   { border-color: var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-card.red    { border-color: var(--color-red,    #ef4444); --card-color: var(--color-red,    #ef4444); }
+:where(.slide) .waxon-card.green  { border-color: var(--color-green,  #22c55e); --card-color: var(--color-green,  #22c55e); }
+:where(.slide) .waxon-card.yellow { border-color: var(--color-yellow, #eab308); --card-color: var(--color-yellow, #eab308); }
+:where(.slide) .waxon-card.blue   { border-color: var(--color-blue,   #3b82f6); --card-color: var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-card.aqua   { border-color: var(--color-aqua,   #06b6d4); --card-color: var(--color-aqua,   #06b6d4); }
+/* Card headings inherit the card's accent color automatically (#43). */
+:where(.slide) .waxon-card h1,
+:where(.slide) .waxon-card h2,
+:where(.slide) .waxon-card h3 { color: var(--card-color, inherit); }
 :where(.slide) .waxon-card > :first-child { margin-top: 0; }
 :where(.slide) .waxon-card > :last-child  { margin-bottom: 0; }
+/* Card size shortcuts (#48). width=NN% modifier sets inline style directly. */
+:where(.slide) .waxon-card.waxon-card-small  { max-width: 18em; }
+:where(.slide) .waxon-card.waxon-card-medium { max-width: 28em; }
+:where(.slide) .waxon-card.waxon-card-large  { max-width: 42em; }
 :where(.slide) .waxon-card-left {
   border: none;
   border-left: 4px solid var(--foreground2, currentColor);
@@ -764,11 +812,11 @@ html, body {
   border: 1px solid var(--foreground2, currentColor);
   border-radius: 6px;
 }
-:where(.slide) .waxon-grid-cell.red    { border-color: var(--color-red,    #ef4444); }
-:where(.slide) .waxon-grid-cell.green  { border-color: var(--color-green,  #22c55e); }
-:where(.slide) .waxon-grid-cell.yellow { border-color: var(--color-yellow, #eab308); }
-:where(.slide) .waxon-grid-cell.blue   { border-color: var(--color-blue,   #3b82f6); }
-:where(.slide) .waxon-grid-cell.aqua   { border-color: var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-grid-cell.red    { border-color: var(--color-red,    #ef4444); border-top: 3px solid var(--color-red,    #ef4444); }
+:where(.slide) .waxon-grid-cell.green  { border-color: var(--color-green,  #22c55e); border-top: 3px solid var(--color-green,  #22c55e); }
+:where(.slide) .waxon-grid-cell.yellow { border-color: var(--color-yellow, #eab308); border-top: 3px solid var(--color-yellow, #eab308); }
+:where(.slide) .waxon-grid-cell.blue   { border-color: var(--color-blue,   #3b82f6); border-top: 3px solid var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-grid-cell.aqua   { border-color: var(--color-aqua,   #06b6d4); border-top: 3px solid var(--color-aqua,   #06b6d4); }
 :where(.slide) .waxon-grid-cell > :first-child { margin-top: 0; }
 :where(.slide) .waxon-grid-cell > :last-child  { margin-bottom: 0; }
 
@@ -799,6 +847,19 @@ html, body {
  * varying label lengths line up cleanly instead of looking jagged. */
 :where(.slide) .waxon-flow-wide .waxon-flow-node { min-width: 8em; }
 :where(.slide) .waxon-flow-wide.waxon-flow-vertical .waxon-flow-node { min-width: 12em; }
+/* :::flow tall / :::flow boxes — pipeline-style tall boxes (#45, #55).
+ * Allow multi-line wrapping and give every node a uniform minimum height
+ * so short/long labels render as consistent rectangular boxes. */
+:where(.slide) .waxon-flow-tall .waxon-flow-node,
+:where(.slide) .waxon-flow-boxes .waxon-flow-node {
+  white-space: normal;
+  min-height: 4em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 0.8em 1em;
+}
 :where(.slide) .waxon-flow-node.red    { border-color: var(--color-red,    #ef4444); color: var(--color-red,    #ef4444); }
 :where(.slide) .waxon-flow-node.green  { border-color: var(--color-green,  #22c55e); color: var(--color-green,  #22c55e); }
 :where(.slide) .waxon-flow-node.yellow { border-color: var(--color-yellow, #eab308); color: var(--color-yellow, #eab308); }
@@ -959,6 +1020,53 @@ html, body {
   opacity: 0.4;
   margin: 1em 0;
 }
+:where(.slide) .waxon-hr.waxon-hr-dashed { border-top-style: dashed; }
+:where(.slide) .waxon-hr.waxon-hr-dotted { border-top-style: dotted; }
+
+/* ---------- Columns (#39) ----------
+ * :::columns N wraps its body in a CSS multi-column container. Each
+ * block-level child flows into the next column like a newspaper. */
+:where(.slide) .waxon-columns > * { break-inside: avoid; }
+:where(.slide) .waxon-columns ul,
+:where(.slide) .waxon-columns ol { margin-top: 0; }
+
+/* ---------- Footnote (#40) ----------
+ * :::footnote renders small, dim annotation text anchored below the main
+ * content. Authors use it for source citations and disclaimers. */
+:where(.slide) .waxon-footnote {
+  font-size: 0.7em;
+  opacity: 0.6;
+  margin-top: auto;
+  padding-top: 0.8em;
+  font-style: italic;
+}
+
+/* ---------- Compare brackets (#52) ----------
+ * :::compare brackets replaces the full continuous pane border with
+ * corner-bracket borders at each corner using CSS masks. */
+:where(.slide) .waxon-compare-brackets .waxon-compare-pane {
+  border: none;
+  position: relative;
+}
+:where(.slide) .waxon-compare-brackets .waxon-compare-pane::before,
+:where(.slide) .waxon-compare-brackets .waxon-compare-pane::after {
+  content: '';
+  position: absolute;
+  width: 1.2em;
+  height: 1.2em;
+  border: 2px solid var(--foreground2, currentColor);
+  pointer-events: none;
+}
+:where(.slide) .waxon-compare-brackets .waxon-compare-pane::before {
+  top: 0; left: 0;
+  border-right: none;
+  border-bottom: none;
+}
+:where(.slide) .waxon-compare-brackets .waxon-compare-pane::after {
+  bottom: 0; right: 0;
+  border-left: none;
+  border-top: none;
+}
 
 /* ---------- Slide transitions ----------
  * Applied via [data-transition="fade"] on the top-level wrapper. CSS
@@ -981,7 +1089,14 @@ html, body {
   font-size: 0.6em;
   opacity: 0.6;
   pointer-events: none;
+  display: flex;
+  gap: 1em;
+  align-items: baseline;
 }
+.footer > .footer-left { flex: 1 1 auto; text-align: left; }
+.footer > .footer-center { flex: 1 1 auto; text-align: center; }
+.footer > .footer-right { flex: 1 1 auto; text-align: right; }
+.footer > :empty { display: none; }
 .footer-counter {
   position: absolute;
   bottom: 1vmin;
@@ -1493,7 +1608,11 @@ html, body {
   <div class="pane" id="pane-main">
     <div class="pane-label" id="main-label" style="display:none;">main</div>
     <div class="slide" id="render-main"></div>
-{{if .Footer}}    <div class="footer">{{.Footer}}</div>
+{{if or .Footer .FooterLeft .FooterRight}}    <div class="footer" id="footer-main">
+      <div class="footer-left" data-footer-tpl="{{.FooterLeft}}">{{.FooterLeft}}</div>
+      <div class="footer-center" data-footer-tpl="{{.Footer}}">{{.Footer}}</div>
+      <div class="footer-right" data-footer-tpl="{{.FooterRight}}">{{.FooterRight}}</div>
+    </div>
 {{end}}    <div class="footer-counter" id="counter-main"></div>
   </div>
   <div class="pane compare-pane" id="pane-compare" style="display:none;">
@@ -1685,6 +1804,19 @@ html, body {
 
   function getSlide(i) { return deck[i] || deck[0]; }
 
+  function updateFooter(n, total) {
+    var footer = document.getElementById('footer-main');
+    if (!footer) return;
+    var regions = footer.querySelectorAll('[data-footer-tpl]');
+    for (var i = 0; i < regions.length; i++) {
+      var tpl = regions[i].getAttribute('data-footer-tpl') || '';
+      regions[i].textContent = tpl
+        .replace(/\{n\}/g, n)
+        .replace(/\{page\}/g, n)
+        .replace(/\{total\}/g, total);
+    }
+  }
+
   function activeView(i) {
     var s = getSlide(i);
     var variantName = activeVariant[i] || '';
@@ -1739,10 +1871,29 @@ html, body {
         if (c) renderMain.classList.add(c);
       });
     }
+    if (view.slide && view.slide.bgImage) {
+      renderMain.style.backgroundImage = view.slide.bgImage;
+      renderMain.style.backgroundSize = 'cover';
+      renderMain.style.backgroundPosition = 'center';
+    } else {
+      renderMain.style.backgroundImage = '';
+      renderMain.style.backgroundSize = '';
+      renderMain.style.backgroundPosition = '';
+    }
     if (view.slide && view.slide.bg) {
       renderMain.style.background = view.slide.bg;
-    } else {
+    } else if (!(view.slide && view.slide.bgImage)) {
       renderMain.style.background = '';
+    }
+    if (view.slide && view.slide.valign) {
+      renderMain.setAttribute('data-valign', view.slide.valign);
+    } else {
+      renderMain.removeAttribute('data-valign');
+    }
+    if (view.slide && view.slide.transition) {
+      renderMain.setAttribute('data-transition', view.slide.transition);
+    } else {
+      renderMain.removeAttribute('data-transition');
     }
     if (view.slide && view.slide.id) {
       renderMain.setAttribute('data-slide-id', view.slide.id);
@@ -1754,6 +1905,7 @@ html, body {
     progress.style.width = ((current + 1) / total * 100) + '%';
     progress.setAttribute('aria-valuenow', String(Math.round((current + 1) / total * 100)));
     if (counter) counter.textContent = (current + 1) + ' / ' + total;
+    updateFooter(current + 1, total);
 
     if (compareMode) {
       var s = getSlide(current);
@@ -2849,8 +3001,28 @@ html, body {
   position: absolute;
   bottom: 1vmin;
   left: var(--slide-padding);
+  right: var(--slide-padding);
   font-size: 0.6em;
   opacity: 0.5;
+  display: flex;
+  gap: 1em;
+  align-items: baseline;
+}
+.footer > .footer-left { flex: 1 1 auto; text-align: left; }
+.footer > .footer-center { flex: 1 1 auto; text-align: center; }
+.footer > .footer-right { flex: 1 1 auto; text-align: right; }
+.footer > :empty { display: none; }
+
+/* Slide-level vertical alignment (#49, #54) */
+.slide[data-valign="center"], .slide[data-valign="middle"] {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+.slide[data-valign="bottom"] {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
 }
 
 @media print {
@@ -2878,10 +3050,14 @@ html, body {
 </head>
 <body>
 <div class="deck"{{if .Transition}} data-transition="{{.Transition}}"{{end}}>
-{{range .Slides}}
-<div class="slide{{if .Class}} {{.Class}}{{end}}" data-index="{{.Index}}"{{if .ID}} id="{{.ID}}"{{end}}{{if .Bg}} style="background: {{.Bg}}"{{end}}>
-{{.HTML}}
-{{if $.Footer}}<div class="footer">{{$.Footer}}</div>{{end}}
+{{range $i, $s := .Slides}}
+<div class="slide{{if $s.Class}} {{$s.Class}}{{end}}" data-index="{{$s.Index}}"{{if $s.ID}} id="{{$s.ID}}"{{end}}{{if $s.Valign}} data-valign="{{$s.Valign}}"{{end}}{{if $s.BgImage}} style="background-image: {{$s.BgImage}}; background-size: cover; background-position: center;{{if $s.Bg}} background-color: {{$s.Bg}};{{end}}"{{else if $s.Bg}} style="background: {{$s.Bg}}"{{end}}>
+{{$s.HTML}}
+{{if or $.Footer $.FooterLeft $.FooterRight}}<div class="footer">
+<div class="footer-left">{{pageFooter $.FooterLeft (inc $i) (len $.Slides)}}</div>
+<div class="footer-center">{{pageFooter $.Footer (inc $i) (len $.Slides)}}</div>
+<div class="footer-right">{{pageFooter $.FooterRight (inc $i) (len $.Slides)}}</div>
+</div>{{end}}
 </div>
 {{end}}
 </div>

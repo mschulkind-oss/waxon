@@ -267,6 +267,8 @@ func init() {
 		"timeline":  handleTimelineFence,
 		"quote":     handleQuoteFence,
 		"stat":      handleStatFence,
+		"columns":   handleColumnsFence,
+		"footnote":  handleFootnoteFence,
 	}
 }
 
@@ -373,8 +375,14 @@ func parseSlideOpts(raw string) *SlideOpts {
 		switch key {
 		case "bg":
 			opts.Background = val
+		case "bg-image":
+			opts.BgImage = val
 		case "class":
 			opts.Class = val
+		case "valign":
+			opts.Valign = val
+		case "transition":
+			opts.Transition = val
 		}
 	}
 	if len(extraClasses) > 0 {
@@ -384,7 +392,7 @@ func parseSlideOpts(raw string) *SlideOpts {
 			opts.Class = opts.Class + " " + strings.Join(extraClasses, " ")
 		}
 	}
-	if opts.Background == "" && opts.Class == "" {
+	if opts.Background == "" && opts.BgImage == "" && opts.Class == "" && opts.Valign == "" && opts.Transition == "" {
 		return nil
 	}
 	return opts
@@ -515,8 +523,17 @@ func paletteClass(hint string) string {
 // recursively passed through the fence transform so nested fences
 // (e.g. :::stat inside a :::grid ::col) get processed.
 func wrapBlock(cls string, body []string) []string {
+	return wrapBlockStyled(cls, "", body)
+}
+
+func wrapBlockStyled(cls, style string, body []string) []string {
 	body = applyFenceBlocksToLines(body)
-	out := []string{fmt.Sprintf(`<div class="%s">`, cls), ""}
+	openTag := fmt.Sprintf(`<div class="%s"`, cls)
+	if style != "" {
+		openTag += fmt.Sprintf(` style="%s"`, style)
+	}
+	openTag += `>`
+	out := []string{openTag, ""}
 	out = append(out, trimBlankEdges(body)...)
 	out = append(out, "", `</div>`)
 	return out
@@ -524,7 +541,7 @@ func wrapBlock(cls string, body []string) []string {
 
 // ---------- :::compare ----------
 
-func handleCompareFence(_ string, lines []string) ([]string, int, error) {
+func handleCompareFence(args string, lines []string) ([]string, int, error) {
 	sections, consumed, err := readFenceSections("compare", lines)
 	if err != nil {
 		return nil, consumed, err
@@ -541,19 +558,104 @@ func handleCompareFence(_ string, lines []string) ([]string, int, error) {
 	if left == nil || right == nil {
 		return nil, consumed, fmt.Errorf("compare requires both ::left and ::right panes")
 	}
-	out := []string{`<div class="waxon-compare">`}
-	out = append(out, comparePaneHTML("left", left.args, left.body)...)
-	out = append(out, comparePaneHTML("right", right.args, right.body)...)
+
+	leftRatio, rightRatio := parseCompareRatio(args)
+	brackets := false
+	for token := range strings.FieldsSeq(args) {
+		if token == "brackets" {
+			brackets = true
+		}
+	}
+
+	containerClass := "waxon-compare"
+	if brackets {
+		containerClass += " waxon-compare-brackets"
+	}
+	out := []string{fmt.Sprintf(`<div class="%s">`, containerClass)}
+	out = append(out, comparePaneHTML("left", left.args, leftRatio, left.body)...)
+	out = append(out, comparePaneHTML("right", right.args, rightRatio, right.body)...)
 	out = append(out, `</div>`)
 	return out, consumed, nil
 }
 
-func comparePaneHTML(side, colorHint string, body []string) []string {
+// parseCompareRatio extracts a width ratio like "40/60" or "1/2" from the
+// compare fence args. Returns "" / "" when no ratio is present.
+func parseCompareRatio(args string) (string, string) {
+	for token := range strings.FieldsSeq(args) {
+		if !strings.Contains(token, "/") {
+			continue
+		}
+		parts := strings.SplitN(token, "/", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		l, r := strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+		if _, err := fmt.Sscanf(l, "%d", new(int)); err != nil {
+			continue
+		}
+		if _, err := fmt.Sscanf(r, "%d", new(int)); err != nil {
+			continue
+		}
+		return l, r
+	}
+	return "", ""
+}
+
+// parsePaneArgs pulls palette hint + key=value modifiers (bg=, valign=) out
+// of a section args string. Everything that's not a key=value pair stays in
+// the returned color hint, so “::left red bg=#111“ still tints the text.
+func parsePaneArgs(args string) (colorHint, bg, valign string) {
+	var hints []string
+	for token := range strings.FieldsSeq(args) {
+		if eq := strings.Index(token, "="); eq > 0 {
+			key, val := token[:eq], token[eq+1:]
+			switch key {
+			case "bg":
+				bg = val
+			case "valign":
+				valign = val
+			default:
+				hints = append(hints, token)
+			}
+			continue
+		}
+		hints = append(hints, token)
+	}
+	return strings.Join(hints, " "), bg, valign
+}
+
+func comparePaneHTML(side, rawArgs, ratio string, body []string) []string {
+	colorHint, bg, valign := parsePaneArgs(rawArgs)
 	classes := "waxon-compare-pane waxon-compare-" + side
 	if c := paletteClass(colorHint); c != "" {
 		classes += " " + c
 	}
-	return wrapBlock(classes, body)
+	var styleParts []string
+	if bg != "" {
+		styleParts = append(styleParts, "background:"+bg)
+	}
+	if ratio != "" {
+		styleParts = append(styleParts, "flex:"+ratio+" 1 0")
+	}
+	if valign != "" {
+		switch valign {
+		case "top":
+			styleParts = append(styleParts, "justify-content:flex-start")
+		case "center", "middle":
+			styleParts = append(styleParts, "justify-content:center")
+		case "bottom":
+			styleParts = append(styleParts, "justify-content:flex-end")
+		}
+	}
+	openTag := fmt.Sprintf(`<div class="%s"`, classes)
+	if len(styleParts) > 0 {
+		openTag += ` style="` + strings.Join(styleParts, ";") + `"`
+	}
+	openTag += `>`
+	out := []string{openTag}
+	out = append(out, body...)
+	out = append(out, `</div>`)
+	return out
 }
 
 // ---------- :::card ----------
@@ -563,15 +665,12 @@ func handleCardFence(args string, lines []string) ([]string, int, error) {
 	if err != nil {
 		return nil, consumed, err
 	}
-	classes := "waxon-card"
-	if c := paletteClass(args); c != "" {
-		classes += " " + c
-	}
+	classes, style := cardClassesAndStyle(args, "waxon-card")
 	var body []string
 	for _, s := range sections {
 		body = append(body, s.body...)
 	}
-	return wrapBlock(classes, body), consumed, nil
+	return wrapBlockStyled(classes, style, body), consumed, nil
 }
 
 func handleCardLeftFence(args string, lines []string) ([]string, int, error) {
@@ -579,15 +678,41 @@ func handleCardLeftFence(args string, lines []string) ([]string, int, error) {
 	if err != nil {
 		return nil, consumed, err
 	}
-	classes := "waxon-card waxon-card-left"
-	if c := paletteClass(args); c != "" {
-		classes += " " + c
-	}
+	classes, style := cardClassesAndStyle(args, "waxon-card waxon-card-left")
 	var body []string
 	for _, s := range sections {
 		body = append(body, s.body...)
 	}
-	return wrapBlock(classes, body), consumed, nil
+	return wrapBlockStyled(classes, style, body), consumed, nil
+}
+
+// cardClassesAndStyle parses card fence args into a final class list + inline
+// style. Recognizes palette hints, size shortcuts (small/medium/large), and
+// width=NN% modifiers. Also honors class=foo for custom class tokens.
+func cardClassesAndStyle(args, base string) (classes, style string) {
+	classes = base
+	var styleParts []string
+	for token := range strings.FieldsSeq(args) {
+		if eq := strings.Index(token, "="); eq > 0 {
+			key, val := token[:eq], token[eq+1:]
+			switch key {
+			case "width":
+				styleParts = append(styleParts, "width:"+val)
+			case "class":
+				classes += " " + val
+			}
+			continue
+		}
+		switch token {
+		case "small", "medium", "large":
+			classes += " waxon-card-" + token
+			continue
+		}
+		if c := paletteClass(token); c != "" {
+			classes += " " + c
+		}
+	}
+	return classes, strings.Join(styleParts, ";")
 }
 
 // ---------- :::grid ----------
@@ -669,6 +794,8 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 	}
 	orientation := "horizontal"
 	wide := false
+	tall := false
+	boxes := false
 	for token := range strings.FieldsSeq(args) {
 		switch token {
 		case "vertical":
@@ -677,6 +804,10 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 			orientation = "horizontal"
 		case "wide":
 			wide = true
+		case "tall":
+			tall = true
+		case "boxes":
+			boxes = true
 		}
 	}
 	// Collect all body lines from all sections (flow has no ::sub-markers).
@@ -696,14 +827,24 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 	if wide {
 		classes += " waxon-flow-wide"
 	}
+	if tall {
+		classes += " waxon-flow-tall"
+	}
+	if boxes {
+		classes += " waxon-flow-boxes"
+	}
 	out := []string{fmt.Sprintf(`<div class="%s">`, classes)}
 	for i, node := range nodes {
 		nodeClasses := "waxon-flow-node"
 		if c := paletteClass(node.color); c != "" {
 			nodeClasses += " " + c
 		}
+		var style string
+		if node.border != "" {
+			style = fmt.Sprintf(` style="border-top-color:%s"`, node.border)
+		}
 		out = append(out, fmt.Sprintf(
-			`<div class="%s">%s</div>`, nodeClasses, htmlEscape(node.text),
+			`<div class="%s"%s>%s</div>`, nodeClasses, style, htmlEscape(node.text),
 		))
 		if i < len(arrows) {
 			switch arrows[i] {
@@ -726,8 +867,9 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 }
 
 type flowNode struct {
-	text  string
-	color string
+	text   string
+	color  string
+	border string
 }
 
 // parseFlowBody scans one or more lines of `[box] --> [box] -.-> [box]`
@@ -787,11 +929,29 @@ func parseFlowBody(lines []string) ([]flowNode, []string, error) {
 			if j >= len(text) {
 				return nil, nil, fmt.Errorf("flow: unterminated [box]")
 			}
-			nodes = append(nodes, flowNode{
-				text:  strings.TrimSpace(text[i+1 : j]),
-				color: color,
-			})
+			boxText := strings.TrimSpace(text[i+1 : j])
 			i = j + 1
+			// Optional modifier suffix: `{border:red}` right after `]`.
+			border := ""
+			if i < len(text) && text[i] == '{' {
+				k := i + 1
+				for k < len(text) && text[k] != '}' {
+					k++
+				}
+				if k >= len(text) {
+					return nil, nil, fmt.Errorf("flow: unterminated {modifier}")
+				}
+				mod := text[i+1 : k]
+				if strings.HasPrefix(mod, "border:") {
+					border = strings.TrimSpace(mod[len("border:"):])
+				}
+				i = k + 1
+			}
+			nodes = append(nodes, flowNode{
+				text:   boxText,
+				color:  color,
+				border: border,
+			})
 		}
 	}
 	return nodes, arrows, nil
@@ -967,6 +1127,46 @@ func handleStatFence(args string, lines []string) ([]string, int, error) {
 	return out, consumed, nil
 }
 
+// ---------- :::columns ----------
+
+// handleColumnsFence wraps its body in a CSS multi-column container. Args
+// must be a positive integer (column count). Example: `:::columns 2`.
+func handleColumnsFence(args string, lines []string) ([]string, int, error) {
+	sections, consumed, err := readFenceSections("columns", lines)
+	if err != nil {
+		return nil, consumed, err
+	}
+	n := 2
+	if args != "" {
+		var parsed int
+		if _, scanErr := fmt.Sscanf(args, "%d", &parsed); scanErr == nil && parsed > 0 {
+			n = parsed
+		}
+	}
+	var body []string
+	for _, s := range sections {
+		body = append(body, s.body...)
+	}
+	style := fmt.Sprintf("column-count:%d;column-gap:2em", n)
+	return wrapBlockStyled("waxon-columns", style, body), consumed, nil
+}
+
+// ---------- :::footnote ----------
+
+// handleFootnoteFence renders small, dim annotation text anchored below the
+// main slide content (above the chrome footer bar).
+func handleFootnoteFence(args string, lines []string) ([]string, int, error) {
+	sections, consumed, err := readFenceSections("footnote", lines)
+	if err != nil {
+		return nil, consumed, err
+	}
+	var body []string
+	for _, s := range sections {
+		body = append(body, s.body...)
+	}
+	return wrapBlock("waxon-footnote", body), consumed, nil
+}
+
 // ---------- Mid-slide horizontal rule ----------
 
 // applyMidSlideHR replaces standalone `----` (4+ dashes) lines with an
@@ -978,7 +1178,8 @@ func applyMidSlideHR(content string) string {
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if !isMidSlideHRLine(trimmed) {
+		kind, matched := classifyHRLine(trimmed)
+		if !matched {
 			continue
 		}
 		// To avoid turning a setext underline into an HR, require the
@@ -988,9 +1189,75 @@ func applyMidSlideHR(content string) string {
 		if i > 0 && strings.TrimSpace(lines[i-1]) != "" {
 			continue
 		}
-		lines[i] = `<hr class="waxon-hr" />`
+		cls := "waxon-hr"
+		if kind != "solid" {
+			cls += " waxon-hr-" + kind
+		}
+		lines[i] = fmt.Sprintf(`<hr class="%s" />`, cls)
 	}
 	return strings.Join(lines, "\n")
+}
+
+// classifyHRLine decides whether a line is a mid-slide divider and, if so,
+// what style it requests. Returns ("solid"|"dashed"|"dotted", true) on match.
+// Recognized forms:
+//   - `----` (4+ `-`, `*`, or `_`) → solid
+//   - `- - -` (spaced dashes, 3+ dashes) → dashed
+//   - `· · ·` or `....` (4+ dots) → dotted
+//   - trailing modifier: `---- dashed`, `---- dotted`, `---- solid`
+func classifyHRLine(s string) (string, bool) {
+	if s == "" {
+		return "", false
+	}
+	// Explicit trailing modifier.
+	for _, mod := range []string{"dashed", "dotted", "solid"} {
+		if strings.HasSuffix(s, " "+mod) {
+			core := strings.TrimSpace(strings.TrimSuffix(s, mod))
+			if isMidSlideHRLine(core) {
+				return mod, true
+			}
+		}
+	}
+	if isMidSlideHRLine(s) {
+		return "solid", true
+	}
+	// Spaced dashes: `- - -` or `- - - -`. Require at least 3 dashes.
+	if isSpacedHR(s, '-') {
+		return "dashed", true
+	}
+	// Dot divider: `· · ·` or `....` (4+ dots).
+	if strings.Count(s, "·") >= 3 && strings.Trim(s, "· ") == "" {
+		return "dotted", true
+	}
+	if len(s) >= 4 {
+		allDot := true
+		for i := 0; i < len(s); i++ {
+			if s[i] != '.' {
+				allDot = false
+				break
+			}
+		}
+		if allDot {
+			return "dotted", true
+		}
+	}
+	return "", false
+}
+
+func isSpacedHR(s string, ch byte) bool {
+	count := 0
+	hasSpace := false
+	for i := 0; i < len(s); i++ {
+		switch s[i] {
+		case ch:
+			count++
+		case ' ':
+			hasSpace = true
+		default:
+			return false
+		}
+	}
+	return hasSpace && count >= 3
 }
 
 // isMidSlideHRLine reports whether a line is a mid-slide horizontal rule

@@ -1037,6 +1037,151 @@ func TestFlowVerticalWide(t *testing.T) {
 	}
 }
 
+func TestFlowTallBoxes(t *testing.T) {
+	input := ":::flow horizontal wide tall boxes\n[A] --> [B]\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, "waxon-flow-tall") {
+		t.Errorf("tall modifier class missing, got %q", out)
+	}
+	if !contains(out, "waxon-flow-boxes") {
+		t.Errorf("boxes modifier class missing, got %q", out)
+	}
+}
+
+func TestFlowNodeBorderModifier(t *testing.T) {
+	input := ":::flow horizontal\n[A]{border:green} --> [B]{border:#ef4444}\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `border-top-color:green`) {
+		t.Errorf("green border modifier missing, got %q", out)
+	}
+	if !contains(out, `border-top-color:#ef4444`) {
+		t.Errorf("hex border modifier missing, got %q", out)
+	}
+}
+
+// ---------- Columns + footnote fences ----------
+
+func TestColumnsFence(t *testing.T) {
+	input := ":::columns 3\n- one\n- two\n- three\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `class="waxon-columns"`) {
+		t.Errorf("columns class missing, got %q", out)
+	}
+	if !contains(out, `column-count:3`) {
+		t.Errorf("column-count style missing, got %q", out)
+	}
+}
+
+func TestFootnoteFence(t *testing.T) {
+	input := ":::footnote\nSource: internal metrics\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `class="waxon-footnote"`) {
+		t.Errorf("footnote class missing, got %q", out)
+	}
+}
+
+// ---------- HR style classification ----------
+
+func TestHRDashedSpaced(t *testing.T) {
+	got := applyMidSlideHR("\n- - - -\n")
+	if !contains(got, `waxon-hr-dashed`) {
+		t.Errorf("spaced dashes should emit dashed HR, got %q", got)
+	}
+}
+
+func TestHRDottedLine(t *testing.T) {
+	got := applyMidSlideHR("\n....\n")
+	if !contains(got, `waxon-hr-dotted`) {
+		t.Errorf("dotted line should emit dotted HR, got %q", got)
+	}
+}
+
+func TestHRTrailingModifier(t *testing.T) {
+	got := applyMidSlideHR("\n---- dashed\n")
+	if !contains(got, `waxon-hr-dashed`) {
+		t.Errorf("trailing dashed modifier should emit dashed HR, got %q", got)
+	}
+}
+
+// ---------- Compare ratio + per-pane bg/valign ----------
+
+func TestCompareWidthRatio(t *testing.T) {
+	input := ":::compare 30/70\n::left\nA\n::right\nB\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `flex:30 1 0`) {
+		t.Errorf("left ratio missing, got %q", out)
+	}
+	if !contains(out, `flex:70 1 0`) {
+		t.Errorf("right ratio missing, got %q", out)
+	}
+}
+
+func TestComparePaneBgAndValign(t *testing.T) {
+	input := ":::compare\n::left bg=#111\nA\n::right valign=center\nB\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `background:#111`) {
+		t.Errorf("left bg missing, got %q", out)
+	}
+	if !contains(out, `justify-content:center`) {
+		t.Errorf("right valign center missing, got %q", out)
+	}
+}
+
+func TestCompareBrackets(t *testing.T) {
+	input := ":::compare brackets\n::left\nA\n::right\nB\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `waxon-compare-brackets`) {
+		t.Errorf("brackets class missing, got %q", out)
+	}
+}
+
+// ---------- Card width + size ----------
+
+func TestCardWidthModifier(t *testing.T) {
+	input := ":::card aqua width=40%\nA\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `style="width:40%"`) {
+		t.Errorf("card width inline style missing, got %q", out)
+	}
+	if !contains(out, `waxon-card aqua`) {
+		t.Errorf("card palette class missing, got %q", out)
+	}
+}
+
+func TestCardSizeShortcut(t *testing.T) {
+	input := ":::card small\nA\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `waxon-card-small`) {
+		t.Errorf("card size class missing, got %q", out)
+	}
+}
+
+// ---------- Slide opts: bg-image / valign / transition ----------
+
+func TestSlideOptsBgImageValignTransition(t *testing.T) {
+	input := "---\ntitle: t\n---\n<!-- slide: bg-image=url(./x.png), valign=center, transition=fade -->\n# Hi\n"
+	deck, err := Parse(input)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(deck.Slides) != 1 {
+		t.Fatalf("want 1 slide, got %d", len(deck.Slides))
+	}
+	opts := deck.Slides[0].SlideOpts
+	if opts == nil {
+		t.Fatalf("slide opts missing")
+	}
+	if opts.BgImage != "url(./x.png)" {
+		t.Errorf("bg-image = %q", opts.BgImage)
+	}
+	if opts.Valign != "center" {
+		t.Errorf("valign = %q", opts.Valign)
+	}
+	if opts.Transition != "fade" {
+		t.Errorf("transition = %q", opts.Transition)
+	}
+}
+
 func TestFlowDivider(t *testing.T) {
 	// A lone `/` between boxes marks parallel/alternate paths.
 	input := ":::flow horizontal\n[A] --> [B] / [C]\n:::"

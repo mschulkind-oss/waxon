@@ -15,6 +15,8 @@ type Meta struct {
 	Theme           string   `yaml:"theme,omitempty" json:"theme,omitempty"`
 	Aspect          string   `yaml:"aspect,omitempty" json:"aspect,omitempty"`
 	Footer          string   `yaml:"footer,omitempty" json:"footer,omitempty"`
+	FooterLeft      string   `yaml:"footer-left,omitempty" json:"footer_left,omitempty"`
+	FooterRight     string   `yaml:"footer-right,omitempty" json:"footer_right,omitempty"`
 	Transition      string   `yaml:"transition,omitempty" json:"transition,omitempty"`
 	TerminalVariant string   `yaml:"terminal-variant,omitempty" json:"terminal_variant,omitempty"`
 	TerminalEffects bool     `yaml:"terminal-effects,omitempty" json:"terminal_effects,omitempty"`
@@ -56,5 +58,8 @@ type Variant struct {
 // SlideOpts represents per-slide overrides from <!-- slide: ... --> directives.
 type SlideOpts struct {
 	Background string `json:"bg,omitempty"`
+	BgImage    string `json:"bg_image,omitempty"`
 	Class      string `json:"class,omitempty"`
+	Valign     string `json:"valign,omitempty"`
+	Transition string `json:"transition,omitempty"`
 }
