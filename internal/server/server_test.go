@@ -163,6 +163,26 @@ func TestHandleAgentContext(t *testing.T) {
 	}
 }
 
+// waitForClient polls the server's client registry until at least one
+// WebSocket client is registered, or fails the test after 2s.
+func waitForClient(t *testing.T, s *Server) {
+	t.Helper()
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		s.clientsMu.Lock()
+		var n int
+		for _, set := range s.clients {
+			n += len(set)
+		}
+		s.clientsMu.Unlock()
+		if n > 0 {
+			return
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	t.Fatal("timed out waiting for WebSocket client to register")
+}
+
 func TestWebSocket(t *testing.T) {
 	s, _ := testServer(t)
 	ts := httptest.NewServer(s.Handler())
@@ -177,6 +197,12 @@ func TestWebSocket(t *testing.T) {
 		t.Fatalf("ws dial: %v", err)
 	}
 	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	// Dial returns after the HTTP upgrade handshake, but the server goroutine
+	// that handles the connection hasn't necessarily reached addScopedClient
+	// yet. Wait until the client is registered before notifying, otherwise the
+	// notify fires into an empty map and the Read below blocks until timeout.
+	waitForClient(t, s)
 
 	// Trigger a reload notification
 	s.notifyClients()
