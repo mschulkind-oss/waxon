@@ -367,6 +367,56 @@ func TestWatchFileChange(t *testing.T) {
 	}
 }
 
+func TestWatchThemeCSSChange(t *testing.T) {
+	// An external --theme-dir .css file change should trigger a reload +
+	// client notification, and the ReloadThemes callback should fire so
+	// the in-memory theme registry stays fresh.
+	themeDir := t.TempDir()
+	cssPath := filepath.Join(themeDir, "acme.css")
+	if err := os.WriteFile(cssPath, []byte(".slide { color: red; }"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	path := writeTestFile(t, testSlides)
+	var reloadCount int
+	s, err := New(Config{
+		File:      path,
+		Port:      "0",
+		Logger:    log.New(io.Discard, "", 0),
+		ThemeDirs: []string{themeDir},
+		ReloadThemes: func() error {
+			reloadCount++
+			return nil
+		},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	ch := make(chan struct{}, 1)
+	s.addClient(ch)
+	defer s.removeClient(ch)
+
+	go s.Watch(ctx)
+	time.Sleep(200 * time.Millisecond)
+
+	if err := os.WriteFile(cssPath, []byte(".slide { color: blue; }"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-ch:
+		if reloadCount == 0 {
+			t.Error("ReloadThemes callback was not invoked")
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("did not receive reload notification after theme CSS change")
+	}
+}
+
 // --- directory-mode tests --------------------------------------------------
 
 func writeDeckTree(t *testing.T) string {

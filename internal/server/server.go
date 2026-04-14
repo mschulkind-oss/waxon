@@ -42,6 +42,15 @@ type Config struct {
 	ThemeOverride string
 	NoOpen        bool
 	Logger        *log.Logger
+	// ThemeDirs is the set of directories containing external theme .css
+	// files. The watcher monitors these for edits and triggers a full
+	// rerender + WebSocket reload so theme development iterates without
+	// restarts.
+	ThemeDirs []string
+	// ReloadThemes, if set, is invoked when a watched theme .css file
+	// changes so the in-memory theme registry stays in sync with disk.
+	// The server calls it before re-rendering.
+	ReloadThemes func() error
 }
 
 // Server serves slides with live reload.
@@ -660,6 +669,25 @@ func (s *Server) Watch(ctx context.Context) error {
 		return err
 	}
 
+	// Also watch any external theme directories so editing theme CSS
+	// triggers a reload without a server restart. Missing directories
+	// are silently tolerated (matches themes.LoadExternal semantics).
+	themeDirSet := make(map[string]struct{})
+	for _, dir := range s.cfg.ThemeDirs {
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			continue
+		}
+		if _, err := os.Stat(abs); err != nil {
+			continue
+		}
+		if err := watcher.Add(abs); err != nil {
+			s.logger.Printf("watch theme dir %s: %v", abs, err)
+			continue
+		}
+		themeDirSet[abs] = struct{}{}
+	}
+
 	debounceMap := make(map[string]*time.Timer)
 	var debMu sync.Mutex
 
@@ -671,6 +699,11 @@ func (s *Server) Watch(ctx context.Context) error {
 		}
 		debounceMap[rel] = time.AfterFunc(100*time.Millisecond, func() {
 			if rel == "" {
+				if s.cfg.ReloadThemes != nil {
+					if err := s.cfg.ReloadThemes(); err != nil {
+						s.logger.Printf("theme reload error: %v", err)
+					}
+				}
 				if err := s.reload(); err != nil {
 					s.logger.Printf("reload error: %v", err)
 				} else {
@@ -706,6 +739,17 @@ func (s *Server) Watch(ctx context.Context) error {
 					scheduleReload("")
 					continue
 				}
+			}
+			// A .css change in any watched directory (external theme dir
+			// OR inside the deck tree where `theme: ./foo.css` files live)
+			// invalidates every rendered deck because the theme CSS is
+			// inlined at render time. Reload themes, then re-render all.
+			if filepath.Ext(event.Name) == ".css" {
+				if !event.Has(fsnotify.Write) && !event.Has(fsnotify.Create) && !event.Has(fsnotify.Rename) {
+					continue
+				}
+				scheduleReload("")
+				continue
 			}
 			if filepath.Ext(event.Name) != ".slides" {
 				continue

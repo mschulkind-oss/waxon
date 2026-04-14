@@ -668,8 +668,16 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 		return nil, consumed, err
 	}
 	orientation := "horizontal"
-	if args == "vertical" {
-		orientation = "vertical"
+	wide := false
+	for token := range strings.FieldsSeq(args) {
+		switch token {
+		case "vertical":
+			orientation = "vertical"
+		case "horizontal":
+			orientation = "horizontal"
+		case "wide":
+			wide = true
+		}
 	}
 	// Collect all body lines from all sections (flow has no ::sub-markers).
 	var bodyLines []string
@@ -685,6 +693,9 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 		return nil, consumed, fmt.Errorf("flow has no [box] nodes")
 	}
 	classes := "waxon-flow waxon-flow-" + orientation
+	if wide {
+		classes += " waxon-flow-wide"
+	}
 	out := []string{fmt.Sprintf(`<div class="%s">`, classes)}
 	for i, node := range nodes {
 		nodeClasses := "waxon-flow-node"

@@ -793,7 +793,12 @@ html, body {
   border-radius: 4px;
   font-family: var(--font-mono);
   white-space: nowrap;
+  text-align: center;
 }
+/* :::flow wide gives every node a uniform minimum width so flows with
+ * varying label lengths line up cleanly instead of looking jagged. */
+:where(.slide) .waxon-flow-wide .waxon-flow-node { min-width: 8em; }
+:where(.slide) .waxon-flow-wide.waxon-flow-vertical .waxon-flow-node { min-width: 12em; }
 :where(.slide) .waxon-flow-node.red    { border-color: var(--color-red,    #ef4444); color: var(--color-red,    #ef4444); }
 :where(.slide) .waxon-flow-node.green  { border-color: var(--color-green,  #22c55e); color: var(--color-green,  #22c55e); }
 :where(.slide) .waxon-flow-node.yellow { border-color: var(--color-yellow, #eab308); color: var(--color-yellow, #eab308); }
@@ -916,6 +921,12 @@ html, body {
   margin-top: 0.4em;
   opacity: 0.6;
 }
+/* Stats nested inside a grid cell shrink so the big number fits the
+ * narrow column. Without this, a 4em number overflows a 3-col grid. */
+:where(.slide) .waxon-grid-cell .waxon-stat { margin: 0.4em 0; padding: 0; }
+:where(.slide) .waxon-grid-cell .waxon-stat-number { font-size: 2.4em; }
+:where(.slide) .waxon-grid-cell .waxon-stat-label { font-size: 0.95em; }
+:where(.slide) .waxon-grid-cell .waxon-stat-context { font-size: 0.75em; }
 
 /* ---------- Badge pills ----------
  * Inline .badge-green{SHIPPED} renders as a rounded pill with a tinted

@@ -546,6 +546,33 @@ Or extend a built-in theme:
 }
 ```
 
+Theme CSS files are watched by `waxon serve`: saving a `.css` file you
+loaded with `theme: ./foo.css` or `--theme-dir` triggers the same
+live-reload as editing the `.slides` file.
+
+#### Component Class Hooks
+
+Every block fence renders to a stable set of CSS classes so custom themes
+can restyle components predictably. All selectors use `:where(.slide)` so
+your overrides win without the `.slide` prefix dance.
+
+| Component       | Classes                                                       |
+|-----------------|---------------------------------------------------------------|
+| Grid layout     | `.waxon-grid`, `.waxon-grid-cell` (one per `::col` / `::cell`) |
+| Card            | `.waxon-card`, `.waxon-card-left` (left-border variant)       |
+| Flow diagram    | `.waxon-flow`, `.waxon-flow-horizontal` / `.waxon-flow-vertical`, `.waxon-flow-wide`, `.waxon-flow-node`, `.waxon-flow-arrow`, `.waxon-flow-arrow-dashed`, `.waxon-flow-divider` |
+| Stat            | `.waxon-stat`, `.waxon-stat-number`, `.waxon-stat-label`, `.waxon-stat-context` |
+| Timeline        | `.waxon-timeline`, `.waxon-timeline-horizontal` / `.waxon-timeline-vertical`, `.waxon-timeline-entry`, `.waxon-timeline-dot`, `.waxon-timeline-label`, `.waxon-timeline-body` |
+| Badge pill      | `.waxon-badge` + palette class (e.g. `.green`)                |
+| Split panes     | `.waxon-split`, `.waxon-split-left`, `.waxon-split-right`     |
+| Mid-slide rule  | `.waxon-hr`                                                   |
+| Per-slide       | `<!-- slide: no-chrome -->` — theme chrome (`::before`/`::after`) is suppressed when a slide has `.no-chrome` |
+
+All palette colors (`red`, `green`, `yellow`, `blue`, `aqua`) apply as
+plain classes on the component root — e.g. `.waxon-grid-cell.aqua` or
+`.waxon-flow-node.red` — so your custom theme can override per-color
+borders without hunting for internal selectors.
+
 ### List Themes
 
 ```bash

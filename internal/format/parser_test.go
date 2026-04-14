@@ -1018,6 +1018,25 @@ func TestFlowWithPaletteNode(t *testing.T) {
 	}
 }
 
+func TestFlowWide(t *testing.T) {
+	input := ":::flow wide\n[A] --> [Long Middle Step] --> [B]\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, "waxon-flow-wide") {
+		t.Errorf("wide modifier class missing, got %q", out)
+	}
+	if !contains(out, "waxon-flow-horizontal") {
+		t.Errorf("default horizontal orientation missing, got %q", out)
+	}
+}
+
+func TestFlowVerticalWide(t *testing.T) {
+	input := ":::flow vertical wide\n[A] --> [B]\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, "waxon-flow-vertical") || !contains(out, "waxon-flow-wide") {
+		t.Errorf("vertical+wide classes missing, got %q", out)
+	}
+}
+
 func TestFlowDivider(t *testing.T) {
 	// A lone `/` between boxes marks parallel/alternate paths.
 	input := ":::flow horizontal\n[A] --> [B] / [C]\n:::"

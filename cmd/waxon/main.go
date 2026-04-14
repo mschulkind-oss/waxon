@@ -31,6 +31,11 @@ var (
 	info    = color.New(color.FgHiCyan)
 )
 
+// activeThemeDirs is the resolved list of directories LoadExternal was given
+// at startup. The serve command passes it to the server so theme CSS files
+// can be watched for hot reload the same way .slides files are.
+var activeThemeDirs []string
+
 func main() {
 	if err := rootCmd().Execute(); err != nil {
 		os.Exit(1)
@@ -69,6 +74,7 @@ collaborate on the same ` + bold.Sprint(".slides") + ` file.
 
 	cmd.PersistentPreRunE = func(c *cobra.Command, args []string) error {
 		dirs := append(themes.DefaultSearchPaths(), themeDirs...)
+		activeThemeDirs = dirs
 		return themes.LoadExternal(dirs)
 	}
 
@@ -140,6 +146,8 @@ editing one deck only reloads browsers viewing that deck.
 				Bind:          bind,
 				ThemeOverride: theme,
 				NoOpen:        noOpen,
+				ThemeDirs:     activeThemeDirs,
+				ReloadThemes:  func() error { return themes.LoadExternal(activeThemeDirs) },
 			})
 			if err != nil {
 				return err
