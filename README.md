@@ -160,6 +160,15 @@ Each slide body supports standard Markdown:
 - **Tables** — GitHub-flavored Markdown tables
 - **Math** — LaTeX math expressions with `$inline$` and `$$block$$`
 
+Indented `a./b./c.` runs under a numeric list item render as an alpha-lettered sub-list:
+
+```markdown
+1. First outer item
+   a. Nested alpha one
+   b. Nested alpha two
+2. Second outer item
+```
+
 ### Speaker Notes
 
 Notes for the human presenter. Visible only in presenter mode:
@@ -361,6 +370,26 @@ Cards also take size shortcuts (`small`, `medium`, `large`) and a `width=NN%` mo
 :::
 ```
 
+A card can float over the slide using `position=<corner>` — the recognised keywords are `top-left`, `top-right`, `bottom-left`, `bottom-right`, `top`, `bottom`, `left`, `right`, and `center`:
+
+```markdown
+:::card position=bottom-right blue
+.dim{Source:} internal metrics, Q2 2025
+:::
+```
+
+Pair a card with a preceding `:::flow` using `at=<stage-index>` to pin the card below the Nth stage of that flow — handy for annotating a step in a pipeline diagram:
+
+```markdown
+:::flow horizontal wide
+[Collect] --> [Enrich] --> [Publish]
+:::
+
+:::card at=2 yellow
+Enrichment runs async.
+:::
+```
+
 ### Grid Layouts
 
 For three or more columns, or a matrix of cells, reach for `:::grid`:
@@ -391,7 +420,23 @@ Simple box-and-arrow flows use `:::flow`:
 :::
 ```
 
-`-->` draws a solid arrow; `-.->` draws a dashed one. Boxes can carry a palette prefix `.color[text]` to tint the box border and text. Orientation is `horizontal` (default) or `vertical`. Branching and labeled arrows are not yet supported — reach for raw HTML for anything beyond a linear chain.
+`-->` draws a solid arrow; `-.->` draws a dashed one. Boxes can carry a palette prefix `.color[text]` to tint the box border and text. Orientation is `horizontal` (default) or `vertical`.
+
+Group a phase of the pipeline with a `{Label: ...}` region. The sub-sequence gets a soft tinted background and the label is rendered above it:
+
+```markdown
+:::flow horizontal wide
+[Plan] --> {Build: [Code] --> [Test]} --> {Ship: [Stage] --> [Prod]}
+:::
+```
+
+For parallel branches, use a `{ A | B }` fork. Each `|`-separated segment becomes its own branch, stacked perpendicular to the flow axis:
+
+```markdown
+:::flow horizontal wide
+[Start] --> { [Fast path] --> [End] | [Slow path] --> [End] }
+:::
+```
 
 Fence modifiers `wide`, `tall`, and `boxes` produce uniform pipeline-style diagrams. Per-node border accents use the `{border:color}` suffix:
 
@@ -420,6 +465,23 @@ Standard across the org
 ```
 
 Each `::` line is an entry. The text after `::` becomes the label — optionally prefixed with `.color` to tint it. The body underneath is the entry's content and goes through markdown as usual.
+
+A trailing `{...}` on the entry label adds per-marker modifiers. Recognised tokens:
+
+- palette color — `red`, `green`, `yellow`, `blue`, `aqua` (tints both marker and label)
+- `big` / `small` — scale the marker dot
+- `icon:X` — replace the dot with the given glyph
+
+```markdown
+:::timeline horizontal
+:: 2023 {big}
+Started the project
+:: 2024 {green}
+Shipped v1
+:: 2025 {icon:✓,aqua}
+Released
+:::
+```
 
 ### Quote Block
 

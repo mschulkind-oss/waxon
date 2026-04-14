@@ -1392,6 +1392,147 @@ func TestParseTransitionFrontmatter(t *testing.T) {
 	}
 }
 
+// ---------- Flow regions (#33) ----------
+
+func TestFlowBackgroundRegion(t *testing.T) {
+	input := ":::flow horizontal\n[A] --> {Build: [B] --> [C]} --> [D]\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `class="waxon-flow-region"`) {
+		t.Errorf("region wrapper missing, got %q", out)
+	}
+	if !contains(out, `class="waxon-flow-region-label">Build<`) {
+		t.Errorf("region label missing, got %q", out)
+	}
+}
+
+func TestFlowRegionUnlabeled(t *testing.T) {
+	input := ":::flow horizontal\n[A] --> {[B] --> [C]}\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `class="waxon-flow-region"`) {
+		t.Errorf("unlabeled region wrapper missing, got %q", out)
+	}
+	if contains(out, `waxon-flow-region-label`) {
+		t.Errorf("unlabeled region should not emit a label div, got %q", out)
+	}
+}
+
+// ---------- Positioned cards (#34) ----------
+
+func TestCardPositionBottomRight(t *testing.T) {
+	input := ":::card position=bottom-right\nHey\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `waxon-card-positioned`) {
+		t.Errorf("positioned class missing, got %q", out)
+	}
+	if !contains(out, `position:absolute`) {
+		t.Errorf("absolute position missing, got %q", out)
+	}
+	if !contains(out, `right:var(--slide-padding`) {
+		t.Errorf("right anchor missing, got %q", out)
+	}
+}
+
+func TestCardPositionCenter(t *testing.T) {
+	input := ":::card position=center\nX\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `transform:translate(-50%,-50%)`) {
+		t.Errorf("center transform missing, got %q", out)
+	}
+}
+
+// ---------- Alpha sub-lists (#35) ----------
+
+func TestAlphaSubList(t *testing.T) {
+	input := "1. First\n   a. nested one\n   b. nested two\n2. Second"
+	out := applyAlphaSubLists(input)
+	if !contains(out, `<ol type="a">`) {
+		t.Errorf("alpha ol missing, got %q", out)
+	}
+	if !contains(out, `<li>nested one</li>`) {
+		t.Errorf("alpha li missing, got %q", out)
+	}
+}
+
+func TestAlphaSubListNotTopLevel(t *testing.T) {
+	// Unindented `a. foo` should not be converted.
+	input := "a. first\nb. second"
+	out := applyAlphaSubLists(input)
+	if contains(out, `<ol type="a">`) {
+		t.Errorf("top-level alpha run should not convert, got %q", out)
+	}
+}
+
+// ---------- Timeline entry modifiers (#37) ----------
+
+func TestTimelineEntryColorModifier(t *testing.T) {
+	input := ":::timeline horizontal\n:: 2025 {green}\nshipped\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `waxon-timeline-marker green`) {
+		t.Errorf("green marker class missing, got %q", out)
+	}
+	if !contains(out, `waxon-timeline-label green`) {
+		t.Errorf("green label class missing, got %q", out)
+	}
+}
+
+func TestTimelineEntryBigModifier(t *testing.T) {
+	input := ":::timeline horizontal\n:: 2025 {big}\nmilestone\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `waxon-timeline-marker big`) {
+		t.Errorf("big marker class missing, got %q", out)
+	}
+}
+
+func TestTimelineEntryIconModifier(t *testing.T) {
+	input := ":::timeline horizontal\n:: 2025 {icon:✓}\ndone\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `waxon-timeline-icon`) {
+		t.Errorf("icon class missing, got %q", out)
+	}
+	if !contains(out, `>✓<`) {
+		t.Errorf("icon glyph missing, got %q", out)
+	}
+}
+
+// ---------- Flow forks (#51) ----------
+
+func TestFlowFork(t *testing.T) {
+	input := ":::flow horizontal\n[A] --> { [B] | [C] } --> [D]\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `class="waxon-flow-fork"`) {
+		t.Errorf("fork wrapper missing, got %q", out)
+	}
+	if !contains(out, `class="waxon-flow-fork-branch"`) {
+		t.Errorf("fork branch wrapper missing, got %q", out)
+	}
+}
+
+// ---------- Card at flow stage (#56) ----------
+
+func TestCardAtFlowStage(t *testing.T) {
+	// A flow with 3 stages followed by a card pinned under stage 2.
+	input := ":::flow horizontal\n[A] --> [B] --> [C]\n:::\n\n:::card at=2\nNote\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `waxon-card-at-stage`) {
+		t.Errorf("at-stage class missing, got %q", out)
+	}
+	if !contains(out, `position:absolute`) {
+		t.Errorf("absolute position missing, got %q", out)
+	}
+	// Stage 2 of 3 → center at 50%.
+	if !contains(out, `50.000`) {
+		t.Errorf("expected 50.000%% column center for stage 2/3, got %q", out)
+	}
+}
+
+func TestCardAtIgnoredWithoutFlow(t *testing.T) {
+	input := ":::card at=2\nOrphan\n:::"
+	out := applyFenceBlocks(input)
+	if contains(out, `waxon-card-at-stage`) {
+		t.Errorf("at-stage should be ignored without a preceding flow, got %q", out)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
 }

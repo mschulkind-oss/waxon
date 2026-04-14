@@ -158,6 +158,7 @@ func buildSlide(index int, raw string) Slide {
 	// color transforms (which emit inline HTML spans inside the remaining
 	// prose, including spans nested inside fence body markdown).
 	slide.Content, slide.Notes, slide.AINotes, slide.Comments, slide.Pauses, slide.SlideOpts = extractDirectives(mainContent)
+	slide.Content = applyAlphaSubLists(slide.Content)
 	slide.Content = applyFenceBlocks(slide.Content)
 	slide.Content = applyMidSlideHR(slide.Content)
 	slide.Content = applyColorTransforms(slide.Content)
@@ -166,6 +167,7 @@ func buildSlide(index int, raw string) Slide {
 	// on a specific alternative.
 	for _, v := range variants {
 		content, notes, aiNotes, comments, pauses, _ := extractDirectives(v.Content)
+		content = applyAlphaSubLists(content)
 		content = applyFenceBlocks(content)
 		content = applyMidSlideHR(content)
 		content = applyColorTransforms(content)
@@ -187,6 +189,9 @@ func buildSlide(index int, raw string) Slide {
 // each fence type. The opening marker on a line decides which transform
 // handles the block.
 func applyFenceBlocks(content string) string {
+	// Reset per-slide cursor state so `:::card at=N` can only reference a
+	// flow that lives on the same slide as the card.
+	lastFlowStageCount = 0
 	return strings.Join(applyFenceBlocksToLines(strings.Split(content, "\n")), "\n")
 }
 
@@ -687,11 +692,13 @@ func handleCardLeftFence(args string, lines []string) ([]string, int, error) {
 }
 
 // cardClassesAndStyle parses card fence args into a final class list + inline
-// style. Recognizes palette hints, size shortcuts (small/medium/large), and
-// width=NN% modifiers. Also honors class=foo for custom class tokens.
+// style. Recognizes palette hints, size shortcuts (small/medium/large),
+// width=NN%, position=<corner>, and at=<stage index> (anchors the card
+// below a given stage of the most recent :::flow on the same slide).
 func cardClassesAndStyle(args, base string) (classes, style string) {
 	classes = base
 	var styleParts []string
+	absPositioned := false
 	for token := range strings.FieldsSeq(args) {
 		if eq := strings.Index(token, "="); eq > 0 {
 			key, val := token[:eq], token[eq+1:]
@@ -700,6 +707,20 @@ func cardClassesAndStyle(args, base string) (classes, style string) {
 				styleParts = append(styleParts, "width:"+val)
 			case "class":
 				classes += " " + val
+			case "position":
+				classes += " waxon-card-positioned"
+				styleParts = append(styleParts, cardPositionStyles(val)...)
+				absPositioned = true
+			case "at":
+				// Pins this card below the Nth stage of the most recent
+				// :::flow on the same slide. Stage count is recorded by
+				// the flow handler into lastFlowStageCount.
+				var n int
+				if _, err := fmt.Sscanf(val, "%d", &n); err == nil && n > 0 && lastFlowStageCount > 0 {
+					classes += " waxon-card-positioned waxon-card-at-stage"
+					styleParts = append(styleParts, cardAtStageStyles(n, lastFlowStageCount)...)
+					absPositioned = true
+				}
 			}
 			continue
 		}
@@ -712,8 +733,59 @@ func cardClassesAndStyle(args, base string) (classes, style string) {
 			classes += " " + c
 		}
 	}
+	if absPositioned {
+		styleParts = append([]string{"position:absolute"}, styleParts...)
+	}
 	return classes, strings.Join(styleParts, ";")
 }
+
+// cardPositionStyles maps a position keyword to inline styles that anchor
+// the card to that corner (or edge / center) of its containing .slide.
+func cardPositionStyles(pos string) []string {
+	const pad = "var(--slide-padding, 2em)"
+	switch pos {
+	case "top-left":
+		return []string{"top:" + pad, "left:" + pad}
+	case "top-right":
+		return []string{"top:" + pad, "right:" + pad}
+	case "bottom-left":
+		return []string{"bottom:" + pad, "left:" + pad}
+	case "bottom-right":
+		return []string{"bottom:" + pad, "right:" + pad}
+	case "top":
+		return []string{"top:" + pad, "left:50%", "transform:translateX(-50%)"}
+	case "bottom":
+		return []string{"bottom:" + pad, "left:50%", "transform:translateX(-50%)"}
+	case "left":
+		return []string{"top:50%", "left:" + pad, "transform:translateY(-50%)"}
+	case "right":
+		return []string{"top:50%", "right:" + pad, "transform:translateY(-50%)"}
+	case "center":
+		return []string{"top:50%", "left:50%", "transform:translate(-50%,-50%)"}
+	}
+	return nil
+}
+
+// cardAtStageStyles anchors the card horizontally below the Nth stage
+// (1-indexed) of a flow with `total` stages. The column center percent
+// assumes stages share the content width equally — good enough for the
+// common wide/uniform flow case.
+func cardAtStageStyles(n, total int) []string {
+	if total <= 0 || n <= 0 {
+		return nil
+	}
+	percent := (float64(n) - 0.5) / float64(total) * 100
+	return []string{
+		fmt.Sprintf("left:calc(var(--slide-padding, 2em) + (100%% - 2 * var(--slide-padding, 2em)) * %.3f / 100)", percent),
+		"top:55%",
+		"transform:translateX(-50%)",
+	}
+}
+
+// lastFlowStageCount is set by handleFlowFence each time it processes a
+// flow so a subsequent :::card at=N on the same slide can position itself
+// under the Nth stage. Reset at slide boundaries by applyFenceBlocks.
+var lastFlowStageCount int
 
 // ---------- :::grid ----------
 
@@ -816,13 +888,18 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 		bodyLines = append(bodyLines, s.body...)
 	}
 
-	nodes, arrows, flowErr := parseFlowBody(bodyLines)
+	items, flowErr := parseFlowBody(bodyLines)
 	if flowErr != nil {
 		return nil, consumed, flowErr
 	}
-	if len(nodes) == 0 {
+	if countFlowNodes(items) == 0 {
 		return nil, consumed, fmt.Errorf("flow has no [box] nodes")
 	}
+	// Record the top-level stage count so a subsequent :::card at=N can
+	// align to the correct column. Counts nodes, regions, and forks at
+	// the top level — arrows and dividers don't count as stages.
+	lastFlowStageCount = countTopLevelStages(items)
+
 	classes := "waxon-flow waxon-flow-" + orientation
 	if wide {
 		classes += " waxon-flow-wide"
@@ -834,34 +911,7 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 		classes += " waxon-flow-boxes"
 	}
 	out := []string{fmt.Sprintf(`<div class="%s">`, classes)}
-	for i, node := range nodes {
-		nodeClasses := "waxon-flow-node"
-		if c := paletteClass(node.color); c != "" {
-			nodeClasses += " " + c
-		}
-		var style string
-		if node.border != "" {
-			style = fmt.Sprintf(` style="border-top-color:%s"`, node.border)
-		}
-		out = append(out, fmt.Sprintf(
-			`<div class="%s"%s>%s</div>`, nodeClasses, style, htmlEscape(node.text),
-		))
-		if i < len(arrows) {
-			switch arrows[i] {
-			case "divider":
-				out = append(out, `<div class="waxon-flow-divider">/</div>`)
-			default:
-				arrowClass := "waxon-flow-arrow"
-				if arrows[i] == "dashed" {
-					arrowClass += " waxon-flow-arrow-dashed"
-				}
-				glyph := flowArrowGlyph(orientation)
-				out = append(out, fmt.Sprintf(
-					`<div class="%s">%s</div>`, arrowClass, glyph,
-				))
-			}
-		}
-	}
+	out = append(out, emitFlowItems(items, orientation)...)
 	out = append(out, `</div>`)
 	return out, consumed, nil
 }
@@ -872,74 +922,162 @@ type flowNode struct {
 	border string
 }
 
-// parseFlowBody scans one or more lines of `[box] --> [box] -.-> [box]`
-// and returns the parsed nodes + the arrow styles between them. Optional
-// `.color[text]` prefix sets the box color from the palette.
-func parseFlowBody(lines []string) ([]flowNode, []string, error) {
-	var nodes []flowNode
-	var arrows []string
-	for _, line := range lines {
-		text := strings.TrimSpace(line)
-		if text == "" {
+// flowItem is the unified element type emitted by the flow parser. A
+// linear flow is a sequence of flowItem values; regions and forks
+// recursively nest flowItem slices inside them.
+type flowItem struct {
+	kind     string       // "node" | "arrow" | "divider" | "region" | "fork"
+	node     flowNode     // kind=="node"
+	arrow    string       // kind=="arrow": "solid" | "dashed"
+	label    string       // kind=="region"
+	inner    []flowItem   // kind=="region"
+	branches [][]flowItem // kind=="fork"
+}
+
+// countFlowNodes returns the total node count across all items, including
+// inside regions and fork branches.
+func countFlowNodes(items []flowItem) int {
+	n := 0
+	for _, it := range items {
+		switch it.kind {
+		case "node":
+			n++
+		case "region":
+			n += countFlowNodes(it.inner)
+		case "fork":
+			for _, br := range it.branches {
+				n += countFlowNodes(br)
+			}
+		}
+	}
+	return n
+}
+
+// countTopLevelStages counts how many stages are at the top level — a
+// "stage" is a node, a region, or a fork. Arrows and dividers don't
+// count. Used by :::card at=N to align under the right column.
+func countTopLevelStages(items []flowItem) int {
+	n := 0
+	for _, it := range items {
+		switch it.kind {
+		case "node", "region", "fork":
+			n++
+		}
+	}
+	return n
+}
+
+// emitFlowItems renders a slice of flow items as HTML lines. Called
+// recursively for region interiors and fork branches.
+func emitFlowItems(items []flowItem, orientation string) []string {
+	var out []string
+	for _, it := range items {
+		switch it.kind {
+		case "node":
+			nodeClasses := "waxon-flow-node"
+			if c := paletteClass(it.node.color); c != "" {
+				nodeClasses += " " + c
+			}
+			var style string
+			if it.node.border != "" {
+				style = fmt.Sprintf(` style="border-top-color:%s"`, it.node.border)
+			}
+			out = append(out, fmt.Sprintf(
+				`<div class="%s"%s>%s</div>`, nodeClasses, style, htmlEscape(it.node.text),
+			))
+		case "arrow":
+			arrowClass := "waxon-flow-arrow"
+			if it.arrow == "dashed" {
+				arrowClass += " waxon-flow-arrow-dashed"
+			}
+			glyph := flowArrowGlyph(orientation)
+			out = append(out, fmt.Sprintf(`<div class="%s">%s</div>`, arrowClass, glyph))
+		case "divider":
+			out = append(out, `<div class="waxon-flow-divider">/</div>`)
+		case "region":
+			out = append(out, `<div class="waxon-flow-region">`)
+			if it.label != "" {
+				out = append(out, fmt.Sprintf(
+					`<div class="waxon-flow-region-label">%s</div>`, htmlEscape(it.label),
+				))
+			}
+			out = append(out, `<div class="waxon-flow-region-body">`)
+			out = append(out, emitFlowItems(it.inner, orientation)...)
+			out = append(out, `</div></div>`)
+		case "fork":
+			out = append(out, `<div class="waxon-flow-fork">`)
+			for _, br := range it.branches {
+				out = append(out, `<div class="waxon-flow-fork-branch">`)
+				out = append(out, emitFlowItems(br, orientation)...)
+				out = append(out, `</div>`)
+			}
+			out = append(out, `</div>`)
+		}
+	}
+	return out
+}
+
+// parseFlowBody turns one or more lines of flow source into a slice of
+// flowItems. Supports:
+//
+//   - `[Node]` — box, optional `.color` prefix and `{border:x}` suffix
+//   - `-->` / `-.->` — solid / dashed arrows
+//   - `/` — lone alternate-path divider (legacy)
+//   - `{Label: [A] --> [B]}` — labeled region grouping
+//   - `{ [A] | [B] }` — fork with N parallel branches
+func parseFlowBody(lines []string) ([]flowItem, error) {
+	text := strings.TrimSpace(strings.Join(lines, " "))
+	if text == "" {
+		return nil, nil
+	}
+	items, _, err := parseFlowItems(text, 0)
+	return items, err
+}
+
+// parseFlowItems consumes flow source starting at position `start` and
+// returns the parsed items plus the index where parsing stopped. Stops
+// on end of input or an unmatched closing brace (used by recursive
+// calls from region/fork parsing).
+func parseFlowItems(text string, start int) ([]flowItem, int, error) {
+	var items []flowItem
+	i := start
+	for i < len(text) {
+		if text[i] == ' ' || text[i] == '\t' {
+			i++
 			continue
 		}
-		i := 0
-		for i < len(text) {
-			if text[i] == ' ' || text[i] == '\t' {
-				i++
-				continue
+		// Optional palette prefix: .color[...]
+		color := ""
+		if text[i] == '.' {
+			j := i + 1
+			for j < len(text) && isClassChar(text[j]) {
+				j++
 			}
-			// Optional palette prefix: .color[...]
-			color := ""
-			if text[i] == '.' {
-				j := i + 1
-				for j < len(text) && isClassChar(text[j]) {
-					j++
-				}
-				if j > i+1 && j < len(text) && text[j] == '[' {
-					candidate := text[i+1 : j]
-					if _, ok := colorPalette[candidate]; ok {
-						color = candidate
-						i = j
-					}
+			if j > i+1 && j < len(text) && text[j] == '[' {
+				candidate := text[i+1 : j]
+				if _, ok := colorPalette[candidate]; ok {
+					color = candidate
+					i = j
 				}
 			}
-			if i >= len(text) || text[i] != '[' {
-				// Arrow segment?
-				end, arrowKind, ok := parseFlowArrow(text, i)
-				if ok {
-					arrows = append(arrows, arrowKind)
-					i = end
-					continue
-				}
-				// A lone `/` between boxes marks parallel/alternate paths
-				// (e.g. `[A] --> [B] / [C]`). Renders as a plain divider.
-				if text[i] == '/' {
-					arrows = append(arrows, "divider")
-					i++
-					continue
-				}
-				return nil, nil, fmt.Errorf("flow: unexpected %q at column %d", string(text[i]), i)
-			}
-			// Read box text until matching `]`.
+		}
+		// Box node
+		if text[i] == '[' {
 			j := i + 1
 			for j < len(text) && text[j] != ']' {
 				j++
 			}
 			if j >= len(text) {
-				return nil, nil, fmt.Errorf("flow: unterminated [box]")
+				return nil, i, fmt.Errorf("flow: unterminated [box]")
 			}
 			boxText := strings.TrimSpace(text[i+1 : j])
 			i = j + 1
-			// Optional modifier suffix: `{border:red}` right after `]`.
 			border := ""
+			// `{border:x}` immediately after `]` (no whitespace) is a modifier.
 			if i < len(text) && text[i] == '{' {
-				k := i + 1
-				for k < len(text) && text[k] != '}' {
-					k++
-				}
-				if k >= len(text) {
-					return nil, nil, fmt.Errorf("flow: unterminated {modifier}")
+				k := findMatchingBrace(text, i)
+				if k < 0 {
+					return nil, i, fmt.Errorf("flow: unterminated {modifier}")
 				}
 				mod := text[i+1 : k]
 				if strings.HasPrefix(mod, "border:") {
@@ -947,14 +1085,131 @@ func parseFlowBody(lines []string) ([]flowNode, []string, error) {
 				}
 				i = k + 1
 			}
-			nodes = append(nodes, flowNode{
-				text:   boxText,
-				color:  color,
-				border: border,
+			items = append(items, flowItem{
+				kind: "node",
+				node: flowNode{text: boxText, color: color, border: border},
 			})
+			continue
+		}
+		// Region or fork `{...}` at a top-level position (i.e. not right
+		// after `]`, which would've been consumed by the node path above).
+		if text[i] == '{' {
+			k := findMatchingBrace(text, i)
+			if k < 0 {
+				return nil, i, fmt.Errorf("flow: unterminated {group}")
+			}
+			inner := text[i+1 : k]
+			item, err := parseFlowGroup(inner)
+			if err != nil {
+				return nil, i, err
+			}
+			items = append(items, item)
+			i = k + 1
+			continue
+		}
+		if text[i] == '}' {
+			// End of enclosing group — caller picks up from here.
+			return items, i, nil
+		}
+		// Arrow segment.
+		end, arrowKind, ok := parseFlowArrow(text, i)
+		if ok {
+			items = append(items, flowItem{kind: "arrow", arrow: arrowKind})
+			i = end
+			continue
+		}
+		// Lone `/` alternate-path divider.
+		if text[i] == '/' {
+			items = append(items, flowItem{kind: "divider"})
+			i++
+			continue
+		}
+		return nil, i, fmt.Errorf("flow: unexpected %q at column %d", string(text[i]), i)
+	}
+	return items, i, nil
+}
+
+// parseFlowGroup interprets the interior of a `{...}` group. If the
+// interior contains an unnested `|`, it's a fork (each `|`-separated
+// segment is a branch). Otherwise, if it matches `<label>: <body>` with
+// a label free of flow tokens, it's a labeled region. Otherwise it's an
+// unlabeled region — a bare grouping wrapper.
+func parseFlowGroup(inner string) (flowItem, error) {
+	if segs := splitTopLevelPipe(inner); len(segs) > 1 {
+		var branches [][]flowItem
+		for _, s := range segs {
+			items, _, err := parseFlowItems(strings.TrimSpace(s), 0)
+			if err != nil {
+				return flowItem{}, err
+			}
+			branches = append(branches, items)
+		}
+		return flowItem{kind: "fork", branches: branches}, nil
+	}
+	if idx := strings.Index(inner, ":"); idx > 0 {
+		label := strings.TrimSpace(inner[:idx])
+		body := strings.TrimSpace(inner[idx+1:])
+		if label != "" && !strings.ContainsAny(label, "[]{}|-") {
+			items, _, err := parseFlowItems(body, 0)
+			if err != nil {
+				return flowItem{}, err
+			}
+			return flowItem{kind: "region", label: label, inner: items}, nil
 		}
 	}
-	return nodes, arrows, nil
+	items, _, err := parseFlowItems(strings.TrimSpace(inner), 0)
+	if err != nil {
+		return flowItem{}, err
+	}
+	return flowItem{kind: "region", inner: items}, nil
+}
+
+// findMatchingBrace returns the index of the `}` that closes the `{` at
+// position open, respecting nested braces. Returns -1 if unmatched.
+func findMatchingBrace(text string, open int) int {
+	depth := 0
+	for i := open; i < len(text); i++ {
+		switch text[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// splitTopLevelPipe splits `inner` on `|` characters that aren't nested
+// inside a `{...}` group or a `[...]` box. Returns the segments. If no
+// top-level `|` is present, returns a single-element slice — callers
+// should check `len(result) > 1` to decide fork vs region.
+func splitTopLevelPipe(inner string) []string {
+	var segs []string
+	start := 0
+	braceDepth := 0
+	bracketDepth := 0
+	for i := 0; i < len(inner); i++ {
+		switch inner[i] {
+		case '{':
+			braceDepth++
+		case '}':
+			braceDepth--
+		case '[':
+			bracketDepth++
+		case ']':
+			bracketDepth--
+		case '|':
+			if braceDepth == 0 && bracketDepth == 0 {
+				segs = append(segs, inner[start:i])
+				start = i + 1
+			}
+		}
+	}
+	segs = append(segs, inner[start:])
+	return segs
 }
 
 // parseFlowArrow matches `-->` or `-.->` starting at position i and
@@ -1018,12 +1273,48 @@ func handleTimelineFence(args string, lines []string) ([]string, int, error) {
 				}
 			}
 		}
+		// Trailing `{mod1,mod2}` on the entry label (#37): per-entry
+		// marker modifiers. Recognized tokens: palette color (red/green/
+		// yellow/blue/aqua), size keyword (big/small), and `icon:X` to
+		// replace the dot with a glyph/character.
+		markerExtra := ""
+		markerIcon := ""
+		if open := strings.LastIndex(label, "{"); open >= 0 && strings.HasSuffix(label, "}") {
+			inner := label[open+1 : len(label)-1]
+			label = strings.TrimSpace(label[:open])
+			for _, tok := range strings.Split(inner, ",") {
+				tok = strings.TrimSpace(tok)
+				if strings.HasPrefix(tok, "icon:") {
+					markerIcon = strings.TrimSpace(tok[len("icon:"):])
+					markerExtra += " waxon-timeline-icon"
+					continue
+				}
+				switch tok {
+				case "big", "small":
+					markerExtra += " " + tok
+					continue
+				}
+				if _, ok := colorPalette[tok]; ok {
+					markerExtra += " " + tok
+					if labelColor == "" {
+						labelColor = tok
+					}
+				}
+			}
+		}
 		labelClasses := "waxon-timeline-label"
 		if labelColor != "" {
 			labelClasses += " " + labelColor
 		}
 		out = append(out, `<div class="waxon-timeline-entry">`)
-		out = append(out, `<div class="waxon-timeline-marker"></div>`)
+		markerClasses := "waxon-timeline-marker" + markerExtra
+		if markerIcon != "" {
+			out = append(out, fmt.Sprintf(
+				`<div class="%s">%s</div>`, markerClasses, htmlEscape(markerIcon),
+			))
+		} else {
+			out = append(out, fmt.Sprintf(`<div class="%s"></div>`, markerClasses))
+		}
 		out = append(out, fmt.Sprintf(
 			`<div class="%s">%s</div>`, labelClasses, htmlEscape(label),
 		))
@@ -1174,6 +1465,58 @@ func handleFootnoteFence(args string, lines []string) ([]string, int, error) {
 // heading underlines on the previous line. The slide separator is still
 // exactly `---`; slideSepRe enforces end-of-line, so `----` never reaches
 // this transform as a separator.
+// applyAlphaSubLists (#35) converts runs of indented `a./b./c.` lines
+// into a raw `<ol type="a">` HTML block so goldmark (which doesn't
+// natively parse alphabetic list markers) renders them as a nested
+// alpha-marker list. Triggered when the line's trimmed prefix matches
+// `<single lowercase letter>. ` AND the line is indented; consecutive
+// matching lines become one <ol>. Numeric children aren't disturbed.
+func applyAlphaSubLists(content string) string {
+	lines := strings.Split(content, "\n")
+	var out []string
+	i := 0
+	for i < len(lines) {
+		if isAlphaListLine(lines[i]) {
+			j := i
+			var items []string
+			for j < len(lines) && isAlphaListLine(lines[j]) {
+				trimmed := strings.TrimLeft(lines[j], " \t")
+				// Strip the `a. ` marker.
+				body := strings.TrimSpace(trimmed[2:])
+				items = append(items, "<li>"+body+"</li>")
+				j++
+			}
+			out = append(out, `<ol type="a">`)
+			out = append(out, items...)
+			out = append(out, `</ol>`)
+			i = j
+			continue
+		}
+		out = append(out, lines[i])
+		i++
+	}
+	return strings.Join(out, "\n")
+}
+
+// isAlphaListLine returns true for indented lines that start with a
+// single lowercase ASCII letter followed by `. ` (e.g. `  a. item`).
+// Non-indented lines aren't matched so top-level paragraphs starting
+// with a letter aren't accidentally captured.
+func isAlphaListLine(line string) bool {
+	if line == "" || (line[0] != ' ' && line[0] != '\t') {
+		return false
+	}
+	trimmed := strings.TrimLeft(line, " \t")
+	if len(trimmed) < 3 {
+		return false
+	}
+	c := trimmed[0]
+	if c < 'a' || c > 'z' {
+		return false
+	}
+	return trimmed[1] == '.' && trimmed[2] == ' '
+}
+
 func applyMidSlideHR(content string) string {
 	lines := strings.Split(content, "\n")
 	for i, line := range lines {

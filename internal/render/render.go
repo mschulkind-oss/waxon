@@ -1068,6 +1068,126 @@ html, body {
   border-top: none;
 }
 
+/* ---------- Flow regions (#33) ----------
+ * {Label: [A] --> [B]} groups a sub-sequence inside a flow with a
+ * soft tinted background and a small label above it. Used to name
+ * phases (Build, Ship) within a larger pipeline. */
+:where(.slide) .waxon-flow-region {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.3em;
+  padding: 0.5em 0.6em;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--accent, currentColor) 8%, transparent);
+  border: 1px dashed color-mix(in srgb, var(--accent, currentColor) 40%, transparent);
+}
+:where(.slide) .waxon-flow-vertical .waxon-flow-region {
+  align-self: stretch;
+}
+:where(.slide) .waxon-flow-region-label {
+  font-family: var(--font-mono);
+  font-size: 0.7em;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+:where(.slide) .waxon-flow-region-body {
+  display: flex;
+  gap: 0.6em;
+  align-items: center;
+  flex-wrap: wrap;
+}
+:where(.slide) .waxon-flow-vertical .waxon-flow-region-body {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+/* ---------- Flow forks (#51) ----------
+ * { [A] | [B] } inside a flow renders parallel branches stacked
+ * perpendicular to the flow's main axis. In a horizontal flow branches
+ * stack vertically; in a vertical flow they stack horizontally. */
+:where(.slide) .waxon-flow-fork {
+  display: flex;
+  gap: 0.4em;
+}
+:where(.slide) .waxon-flow-horizontal .waxon-flow-fork {
+  flex-direction: column;
+}
+:where(.slide) .waxon-flow-vertical .waxon-flow-fork {
+  flex-direction: row;
+}
+:where(.slide) .waxon-flow-fork-branch {
+  display: flex;
+  gap: 0.5em;
+  align-items: center;
+  padding: 0.2em 0.4em;
+  border-left: 2px solid color-mix(in srgb, var(--accent, currentColor) 40%, transparent);
+}
+:where(.slide) .waxon-flow-vertical .waxon-flow-fork-branch {
+  flex-direction: column;
+  align-items: stretch;
+  border-left: none;
+  border-top: 2px solid color-mix(in srgb, var(--accent, currentColor) 40%, transparent);
+  padding: 0.4em 0.2em;
+}
+
+/* ---------- Positioned cards (#34, #56) ----------
+ * :::card position=<corner> or :::card at=<stage> emits inline styles
+ * for absolute positioning. These rules give the card a sensible
+ * max width so a bottom-right floating card doesn't stretch to the
+ * opposite edge, and a soft shadow so it reads as an overlay. */
+:where(.slide) .waxon-card-positioned {
+  max-width: min(28em, 45%);
+  z-index: 5;
+  box-shadow: 0 4px 16px color-mix(in srgb, #000 25%, transparent);
+}
+:where(.slide) .waxon-card-at-stage {
+  max-width: 16em;
+  font-size: 0.85em;
+}
+
+/* ---------- Alpha sub-lists (#35) ----------
+ * The parser preprocesses a./b./c. runs under numeric list items
+ * into raw ol type=a blocks. Style them so alpha markers render
+ * smaller than their numeric parent. */
+:where(.slide) ol[type="a"],
+:where(.slide) ol[type="A"] {
+  margin: 0.3em 0 0.3em 1.5em;
+  font-size: 0.95em;
+}
+:where(.slide) ol[type="a"] > li::marker,
+:where(.slide) ol[type="A"] > li::marker {
+  color: color-mix(in srgb, var(--list-marker-color, var(--accent, currentColor)) 70%, transparent);
+}
+
+/* ---------- Timeline entry modifiers (#37) ----------
+ * ::entry Label {color} / {big} / {small} / {icon:check} —
+ * per-entry marker styling. Color classes reuse the palette vars;
+ * big/small scale the dot; icon entries replace the dot glyph. */
+:where(.slide) .waxon-timeline-marker.big    { width: 16px; height: 16px; }
+:where(.slide) .waxon-timeline-marker.small  { width: 6px;  height: 6px;  }
+:where(.slide) .waxon-timeline-marker.red    { background: var(--color-red,    #ef4444); }
+:where(.slide) .waxon-timeline-marker.green  { background: var(--color-green,  #22c55e); }
+:where(.slide) .waxon-timeline-marker.yellow { background: var(--color-yellow, #eab308); }
+:where(.slide) .waxon-timeline-marker.blue   { background: var(--color-blue,   #3b82f6); }
+:where(.slide) .waxon-timeline-marker.aqua   { background: var(--color-aqua,   #06b6d4); }
+:where(.slide) .waxon-timeline-horizontal .waxon-timeline-marker.big   { top: -9px; }
+:where(.slide) .waxon-timeline-horizontal .waxon-timeline-marker.small { top: -4px; }
+:where(.slide) .waxon-timeline-vertical   .waxon-timeline-marker.big   { left: -9px; }
+:where(.slide) .waxon-timeline-vertical   .waxon-timeline-marker.small { left: -4px; }
+:where(.slide) .waxon-timeline-marker.waxon-timeline-icon {
+  background: transparent;
+  border-radius: 0;
+  width: auto;
+  height: auto;
+  font-size: 1em;
+  line-height: 1;
+  font-family: var(--font-mono);
+}
+:where(.slide) .waxon-timeline-horizontal .waxon-timeline-marker.waxon-timeline-icon { top: -0.7em; }
+:where(.slide) .waxon-timeline-vertical   .waxon-timeline-marker.waxon-timeline-icon { left: -0.5em; top: -0.1em; }
+
 /* ---------- Slide transitions ----------
  * Applied via [data-transition="fade"] on the top-level wrapper. CSS
  * drives the crossfade; JS just swaps slide content on navigation. The
