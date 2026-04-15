@@ -447,7 +447,18 @@ Fence modifiers `wide`, `tall`, and `boxes` produce uniform pipeline-style diagr
 ```
 
 - `wide` — every node gets a uniform minimum width
-- `tall` / `boxes` — every node wraps to multi-line and gets a uniform minimum height so short and long labels render as consistent rectangles
+- `tall` — every node wraps to multi-line and gets a uniform minimum height so short and long labels render as consistent rectangles
+- `boxes` — like `tall`, plus a tinted fill and drop shadow so nodes read as solid blocks rather than outlines
+
+Flow regions can take an optional palette color in two forms:
+
+```markdown
+:::flow horizontal wide
+{Ingest aqua: [Collect] --> [Split]} --> .dim{Archive: [Old] --> [Cold]}
+:::
+```
+
+A trailing palette word in the label (`{Ingest aqua: ...}`) tints the region background and label. A `.color` prefix on the outer `{...}` (`.dim{Archive: ...}`) applies the palette without touching the label itself — useful for de-emphasising past phases.
 
 ### Timeline
 
@@ -540,6 +551,62 @@ Flow dense content into newspaper-style columns with `:::columns N`:
 ```
 
 Each block-level child flows into the next column. Works for anything — lists, paragraphs, cards.
+
+Add `balanced` to distribute items evenly across columns instead of the default top-to-bottom fill — helpful for short lists that would otherwise cluster in column 1:
+
+```markdown
+:::columns 2 balanced
+- One
+- Two
+- Three
+- Four
+:::
+```
+
+### Images
+
+Plain markdown `![alt](url)` renders inline. For explicit sizing or a tinted border, wrap the image in a `:::image` fence:
+
+```markdown
+:::image width=40% align=center aqua
+![Architecture diagram](./assets/arch.png)
+:::
+```
+
+Recognised modifiers: `width=NN%` / `width=20em`, `max-width=...`, `align=left|center|right`, and a palette class (`red`/`green`/`yellow`/`blue`/`aqua`) for a framed border.
+
+### Nested Block Directives
+
+Block fences compose — a `:::card` or `:::stat` can live inside a `:::compare` pane, a `:::grid` cell, or `:::columns`. Leave a blank line around the inner fence so markdown parses cleanly:
+
+```markdown
+:::compare
+::left
+
+:::card yellow small
+**Issue:** validation failed on 3% of pages
+:::
+
+::right bg=#ffffff
+### Proposed fix
+Switch to the strict parser.
+:::
+```
+
+A `:::compare` pane with `bg=` set to a light color (e.g. `#ffffff`) automatically flips its text to dark so content stays readable on dark themes.
+
+### Fill Modifier
+
+Grids and compares normally shrink to their content. Add `fill` (or `stretch`) on the opener to grow the block to consume remaining vertical slide space — useful when a footnote would otherwise sit with a gap above it:
+
+```markdown
+:::grid 2 fill
+::col
+Left content
+::col
+Right content
+:::
+```
 
 ### Footnotes
 

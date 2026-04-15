@@ -744,6 +744,20 @@ html, body {
 :where(.slide) .waxon-compare-pane h1,
 :where(.slide) .waxon-compare-pane h2,
 :where(.slide) .waxon-compare-pane h3 { margin-top: 0; }
+/* R10-2: panes with a light explicit background flip text to dark so
+ * content stays readable on dark themes. The marker class is applied by
+ * the parser based on the bg= value's luminance. */
+:where(.slide) .waxon-compare-pane.waxon-pane-light {
+  color: #0f172a;
+}
+:where(.slide) .waxon-compare-pane.waxon-pane-light h1,
+:where(.slide) .waxon-compare-pane.waxon-pane-light h2,
+:where(.slide) .waxon-compare-pane.waxon-pane-light h3,
+:where(.slide) .waxon-compare-pane.waxon-pane-light h4 { color: #0f172a; }
+/* R12-1: fill modifier distributes remaining vertical space to the
+ * container so grid/compare grow to the slide bottom instead of leaving
+ * a gap above the footnote. */
+:where(.slide) .waxon-compare.waxon-fill { flex: 1 1 auto; align-self: stretch; }
 @media (max-width: 700px) {
   :where(.slide) .waxon-compare { flex-direction: column; }
 }
@@ -784,7 +798,10 @@ html, body {
 :where(.slide) .waxon-card > :first-child { margin-top: 0; }
 :where(.slide) .waxon-card > :last-child  { margin-bottom: 0; }
 /* Card size shortcuts (#48). width=NN% modifier sets inline style directly. */
-:where(.slide) .waxon-card.waxon-card-small  { max-width: 18em; }
+:where(.slide) .waxon-card.waxon-card-small  { max-width: 18em; font-size: 0.85em; }
+/* R11-3: :::card small also tightens internal spacing for dense
+ * overview slides. Medium and large keep default density. */
+:where(.slide) .waxon-card.waxon-card-small { padding: 0.5em 0.8em; }
 :where(.slide) .waxon-card.waxon-card-medium { max-width: 28em; }
 :where(.slide) .waxon-card.waxon-card-large  { max-width: 42em; }
 :where(.slide) .waxon-card-left {
@@ -859,6 +876,15 @@ html, body {
   justify-content: center;
   text-align: center;
   padding: 0.8em 1em;
+}
+/* R10-6: boxes is distinct from tall — adds a subtle fill and heavier
+ * border so nodes read as solid blocks rather than outlines. tall alone
+ * keeps the original open-outline look. */
+:where(.slide) .waxon-flow-boxes .waxon-flow-node {
+  background: color-mix(in srgb, var(--accent, currentColor) 10%, transparent);
+  border-width: 2px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px color-mix(in srgb, #000 20%, transparent);
 }
 :where(.slide) .waxon-flow-node.red    { border-color: var(--color-red,    #ef4444); color: var(--color-red,    #ef4444); }
 :where(.slide) .waxon-flow-node.green  { border-color: var(--color-green,  #22c55e); color: var(--color-green,  #22c55e); }
@@ -948,10 +974,15 @@ html, body {
 :where(.slide) .waxon-quote.aqua   { border-left-color: var(--color-aqua,   #06b6d4); }
 :where(.slide) .waxon-quote > :first-child { margin-top: 0; }
 :where(.slide) .waxon-quote-by {
-  margin-top: 0.4em;
-  font-size: 0.8em;
+  display: block;
+  margin-top: 0.6em;
+  font-size: 0.75em;
   font-style: normal;
-  opacity: 0.6;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  opacity: 0.55;
+  text-align: right;
 }
 
 /* ---------- Stat block ----------
@@ -995,6 +1026,7 @@ html, body {
  * palette vars drive the background. */
 :where(.slide) .waxon-badge {
   display: inline-block;
+  margin: 0 0.25em;
   padding: 0.05em 0.5em;
   border-radius: 999px;
   font-family: var(--font-mono);
@@ -1029,6 +1061,38 @@ html, body {
 :where(.slide) .waxon-columns > * { break-inside: avoid; }
 :where(.slide) .waxon-columns ul,
 :where(.slide) .waxon-columns ol { margin-top: 0; }
+/* R10-5: balanced columns switches to CSS Grid so short lists distribute
+ * evenly across columns rather than piling into column 1. Inline style
+ * sets grid-template-columns from the handler. */
+:where(.slide) .waxon-columns.waxon-columns-balanced {
+  display: grid;
+  column-count: unset;
+}
+:where(.slide) .waxon-columns.waxon-columns-balanced > * {
+  break-inside: auto;
+}
+/* R12-1: fill modifier stretches a grid to consume remaining vertical
+ * slide space so footnotes sit tight against the bottom. */
+:where(.slide) .waxon-grid.waxon-fill {
+  flex: 1 1 auto;
+  align-self: stretch;
+  height: 100%;
+}
+
+/* ---------- :::image (R10-1) ----------
+ * Wrapper for sized inline images. Children render with the normal img
+ * rule; this block just constrains width and adds optional margins
+ * from align=left/center/right. */
+:where(.slide) .waxon-image {
+  display: block;
+  margin: 1em 0;
+}
+:where(.slide) .waxon-image img { display: block; width: 100%; height: auto; }
+:where(.slide) .waxon-image.red    { border: 2px solid var(--color-red,    #ef4444); padding: 0.2em; border-radius: 4px; }
+:where(.slide) .waxon-image.green  { border: 2px solid var(--color-green,  #22c55e); padding: 0.2em; border-radius: 4px; }
+:where(.slide) .waxon-image.yellow { border: 2px solid var(--color-yellow, #eab308); padding: 0.2em; border-radius: 4px; }
+:where(.slide) .waxon-image.blue   { border: 2px solid var(--color-blue,   #3b82f6); padding: 0.2em; border-radius: 4px; }
+:where(.slide) .waxon-image.aqua   { border: 2px solid var(--color-aqua,   #06b6d4); padding: 0.2em; border-radius: 4px; }
 
 /* ---------- Footnote (#40) ----------
  * :::footnote renders small, dim annotation text anchored below the main
@@ -1102,6 +1166,20 @@ html, body {
   flex-direction: column;
   align-items: stretch;
 }
+/* R10-4 / R11-4: per-region palette hint. Tints background and label
+ * without overriding child node colors. dim uses opacity instead so
+ * the whole region reads as de-emphasized. */
+:where(.slide) .waxon-flow-region.red    { background: color-mix(in srgb, var(--color-red,    #ef4444) 12%, transparent); border-color: color-mix(in srgb, var(--color-red,    #ef4444) 50%, transparent); }
+:where(.slide) .waxon-flow-region.green  { background: color-mix(in srgb, var(--color-green,  #22c55e) 12%, transparent); border-color: color-mix(in srgb, var(--color-green,  #22c55e) 50%, transparent); }
+:where(.slide) .waxon-flow-region.yellow { background: color-mix(in srgb, var(--color-yellow, #eab308) 12%, transparent); border-color: color-mix(in srgb, var(--color-yellow, #eab308) 50%, transparent); }
+:where(.slide) .waxon-flow-region.blue   { background: color-mix(in srgb, var(--color-blue,   #3b82f6) 12%, transparent); border-color: color-mix(in srgb, var(--color-blue,   #3b82f6) 50%, transparent); }
+:where(.slide) .waxon-flow-region.aqua   { background: color-mix(in srgb, var(--color-aqua,   #06b6d4) 12%, transparent); border-color: color-mix(in srgb, var(--color-aqua,   #06b6d4) 50%, transparent); }
+:where(.slide) .waxon-flow-region.red    > .waxon-flow-region-label { color: var(--color-red,    #ef4444); opacity: 1; }
+:where(.slide) .waxon-flow-region.green  > .waxon-flow-region-label { color: var(--color-green,  #22c55e); opacity: 1; }
+:where(.slide) .waxon-flow-region.yellow > .waxon-flow-region-label { color: var(--color-yellow, #eab308); opacity: 1; }
+:where(.slide) .waxon-flow-region.blue   > .waxon-flow-region-label { color: var(--color-blue,   #3b82f6); opacity: 1; }
+:where(.slide) .waxon-flow-region.aqua   > .waxon-flow-region-label { color: var(--color-aqua,   #06b6d4); opacity: 1; }
+:where(.slide) .waxon-flow-region.dim    { opacity: 0.45; }
 
 /* ---------- Flow forks (#51) ----------
  * { [A] | [B] } inside a flow renders parallel branches stacked

@@ -1533,6 +1533,122 @@ func TestCardAtIgnoredWithoutFlow(t *testing.T) {
 	}
 }
 
+// ---------- Round 10–12 features ----------
+
+func TestInlineColorBracketForm(t *testing.T) {
+	// R12-2: `.aqua[text]` should work identically to `.aqua{text}` so
+	// authors can use either form inside cards, grids, and compare panes.
+	got := applyInlineColor(".aqua[hello] and .aqua{world}")
+	want := `<span class="aqua">hello</span> and <span class="aqua">world</span>`
+	if got != want {
+		t.Errorf("bracket form mismatch:\n got=%q\nwant=%q", got, want)
+	}
+}
+
+func TestNestedCardInsideCompare(t *testing.T) {
+	// R11-1: `:::card` inside a `:::compare` pane must be processed as
+	// a fence rather than emitted as raw text.
+	input := ":::compare\n::left\n\n:::card yellow\nInside\n:::\n\n::right\nPlain\n:::"
+	out := applyFenceBlocks(input)
+	if !contains(out, `class="waxon-card yellow"`) {
+		t.Errorf("nested card missing, got %q", out)
+	}
+	if contains(out, ":::card yellow") {
+		t.Errorf("nested fence left as raw text, got %q", out)
+	}
+}
+
+func TestCompareFillModifier(t *testing.T) {
+	// R12-1
+	out := applyFenceBlocks(":::compare fill\n::left\nA\n::right\nB\n:::")
+	if !contains(out, `waxon-fill`) {
+		t.Errorf("fill class missing, got %q", out)
+	}
+}
+
+func TestGridFillModifier(t *testing.T) {
+	out := applyFenceBlocks(":::grid 2 fill\n::col\nA\n::col\nB\n:::")
+	if !contains(out, `waxon-fill`) {
+		t.Errorf("fill class missing, got %q", out)
+	}
+}
+
+func TestComparePaneLightBgAutoContrast(t *testing.T) {
+	// R10-2: #ffffff bg → pane-light class so text flips to dark.
+	out := applyFenceBlocks(":::compare\n::left bg=#ffffff\nA\n::right\nB\n:::")
+	if !contains(out, `waxon-pane-light`) {
+		t.Errorf("expected waxon-pane-light for #ffffff bg, got %q", out)
+	}
+}
+
+func TestComparePaneDarkBgNoContrastFlip(t *testing.T) {
+	out := applyFenceBlocks(":::compare\n::left bg=#111111\nA\n::right\nB\n:::")
+	if contains(out, `waxon-pane-light`) {
+		t.Errorf("unexpected waxon-pane-light for #111111 bg, got %q", out)
+	}
+}
+
+func TestFlowRegionLabelColor(t *testing.T) {
+	// R10-4: trailing palette word in region label.
+	out := applyFenceBlocks(":::flow horizontal\n{Ingest aqua: [A] --> [B]}\n:::")
+	if !contains(out, `class="waxon-flow-region aqua"`) {
+		t.Errorf("region palette class missing, got %q", out)
+	}
+	if !contains(out, `>Ingest<`) {
+		t.Errorf("palette word not stripped from label, got %q", out)
+	}
+}
+
+func TestFlowRegionPrefixDim(t *testing.T) {
+	// R11-4: `.dim{Label: ...}` applies palette via outer prefix.
+	out := applyFenceBlocks(":::flow horizontal\n.dim{Archive: [A]}\n:::")
+	if !contains(out, `class="waxon-flow-region dim"`) {
+		t.Errorf("dim region class missing, got %q", out)
+	}
+}
+
+func TestColumnsBalanced(t *testing.T) {
+	out := applyFenceBlocks(":::columns 2 balanced\n- one\n- two\n:::")
+	if !contains(out, `waxon-columns-balanced`) {
+		t.Errorf("balanced class missing, got %q", out)
+	}
+	if !contains(out, `grid-template-columns:repeat(2, 1fr)`) {
+		t.Errorf("balanced style missing grid-template-columns, got %q", out)
+	}
+}
+
+func TestImageFenceWidth(t *testing.T) {
+	// R10-1
+	out := applyFenceBlocks(":::image width=40%\n![alt](logo.png)\n:::")
+	if !contains(out, `class="waxon-image"`) {
+		t.Errorf("waxon-image wrapper missing, got %q", out)
+	}
+	if !contains(out, `width:40%`) {
+		t.Errorf("width style missing, got %q", out)
+	}
+}
+
+func TestCardSmallClass(t *testing.T) {
+	// R11-3: small modifier registered on card.
+	out := applyFenceBlocks(":::card small\nHi\n:::")
+	if !contains(out, `waxon-card-small`) {
+		t.Errorf("small class missing, got %q", out)
+	}
+}
+
+func TestAlphaSubListPreservesParent(t *testing.T) {
+	// R10-3: alpha sub-list must not interrupt the parent numbered list.
+	content := "1. First\n2. Second:\n   a. Alpha one\n   b. Alpha two\n3. Third\n"
+	got := applyAlphaSubLists(content)
+	if !contains(got, `<ol type="a">`) {
+		t.Errorf("alpha <ol> missing, got %q", got)
+	}
+	// Third item must remain as part of the source for the outer list.
+	if !contains(got, "3. Third") {
+		t.Errorf("third item lost after alpha transform, got %q", got)
+	}
+}
+
 func contains(s, substr string) bool {
 	return len(s) >= len(substr) && (s == substr || len(s) > 0 && containsHelper(s, substr))
 }

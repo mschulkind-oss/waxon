@@ -274,7 +274,51 @@ func init() {
 		"stat":      handleStatFence,
 		"columns":   handleColumnsFence,
 		"footnote":  handleFootnoteFence,
+		"image":     handleImageFence,
 	}
+}
+
+// handleImageFence wraps its body (one or more markdown images or raw
+// <img> tags) in a sized container so authors can scale images via
+// `width=NN%` or `width=20em`, and apply a palette tint as a border
+// accent. Without the fence, plain markdown images still render — this
+// exists for explicit sizing. (R10-1)
+func handleImageFence(args string, lines []string) ([]string, int, error) {
+	sections, consumed, err := readFenceSections("image", lines)
+	if err != nil {
+		return nil, consumed, err
+	}
+	classes := "waxon-image"
+	var styleParts []string
+	for token := range strings.FieldsSeq(args) {
+		if eq := strings.Index(token, "="); eq > 0 {
+			key, val := token[:eq], token[eq+1:]
+			switch key {
+			case "width":
+				styleParts = append(styleParts, "width:"+val)
+			case "max-width":
+				styleParts = append(styleParts, "max-width:"+val)
+			case "align":
+				switch val {
+				case "left":
+					styleParts = append(styleParts, "margin-right:auto")
+				case "right":
+					styleParts = append(styleParts, "margin-left:auto")
+				case "center":
+					styleParts = append(styleParts, "margin-left:auto", "margin-right:auto")
+				}
+			}
+			continue
+		}
+		if c := paletteClass(token); c != "" {
+			classes += " " + c
+		}
+	}
+	var body []string
+	for _, s := range sections {
+		body = append(body, s.body...)
+	}
+	return wrapBlockStyled(classes, strings.Join(styleParts, ";"), body), consumed, nil
 }
 
 // splitVariants separates main slide content from ---variant: sections.
@@ -566,15 +610,22 @@ func handleCompareFence(args string, lines []string) ([]string, int, error) {
 
 	leftRatio, rightRatio := parseCompareRatio(args)
 	brackets := false
+	fill := false
 	for token := range strings.FieldsSeq(args) {
-		if token == "brackets" {
+		switch token {
+		case "brackets":
 			brackets = true
+		case "fill", "stretch":
+			fill = true
 		}
 	}
 
 	containerClass := "waxon-compare"
 	if brackets {
 		containerClass += " waxon-compare-brackets"
+	}
+	if fill {
+		containerClass += " waxon-fill"
 	}
 	out := []string{fmt.Sprintf(`<div class="%s">`, containerClass)}
 	out = append(out, comparePaneHTML("left", left.args, leftRatio, left.body)...)
@@ -635,6 +686,12 @@ func comparePaneHTML(side, rawArgs, ratio string, body []string) []string {
 	if c := paletteClass(colorHint); c != "" {
 		classes += " " + c
 	}
+	// Light background auto-contrast: if bg is a light color, the pane needs
+	// dark text to stay readable on dark themes. Adds a marker class that
+	// the stylesheet uses to flip text color. (R10-2)
+	if bg != "" && isLightColor(bg) {
+		classes += " waxon-pane-light"
+	}
 	var styleParts []string
 	if bg != "" {
 		styleParts = append(styleParts, "background:"+bg)
@@ -657,10 +714,66 @@ func comparePaneHTML(side, rawArgs, ratio string, body []string) []string {
 		openTag += ` style="` + strings.Join(styleParts, ";") + `"`
 	}
 	openTag += `>`
-	out := []string{openTag}
-	out = append(out, body...)
-	out = append(out, `</div>`)
+	// Recurse into the pane body so nested fences (`:::card`, `:::stat`,
+	// etc.) inside a compare pane are processed rather than emitted as
+	// literal text. Blank lines on the edges keep goldmark from treating
+	// our `<div>` as the start of an HTML block that swallows following
+	// markdown. (R11-1)
+	body = applyFenceBlocksToLines(body)
+	out := []string{openTag, ""}
+	out = append(out, trimBlankEdges(body)...)
+	out = append(out, "", `</div>`)
 	return out
+}
+
+// isLightColor returns true for CSS color literals that are perceptually
+// light enough to need dark text. Handles #rgb / #rrggbb hex, rgb()/rgba()
+// functional notation, and the common named whites. Returns false on any
+// parse failure so we default to the theme's normal text color. (R10-2)
+func isLightColor(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	lower := strings.ToLower(s)
+	switch lower {
+	case "white", "ivory", "snow", "whitesmoke", "linen", "beige", "lightyellow", "lightgrey", "lightgray":
+		return true
+	}
+	if strings.HasPrefix(s, "#") {
+		hex := s[1:]
+		if len(hex) == 3 {
+			hex = string([]byte{hex[0], hex[0], hex[1], hex[1], hex[2], hex[2]})
+		}
+		if len(hex) != 6 {
+			return false
+		}
+		var r, g, b int
+		if _, err := fmt.Sscanf(hex, "%2x%2x%2x", &r, &g, &b); err != nil {
+			return false
+		}
+		return relativeLuminance(r, g, b) > 0.6
+	}
+	if strings.HasPrefix(lower, "rgb(") || strings.HasPrefix(lower, "rgba(") {
+		inside := lower[strings.Index(lower, "(")+1 : strings.LastIndex(lower, ")")]
+		parts := strings.Split(inside, ",")
+		if len(parts) < 3 {
+			return false
+		}
+		var vals [3]int
+		for i := 0; i < 3; i++ {
+			p := strings.TrimSpace(parts[i])
+			if _, err := fmt.Sscanf(p, "%d", &vals[i]); err != nil {
+				return false
+			}
+		}
+		return relativeLuminance(vals[0], vals[1], vals[2]) > 0.6
+	}
+	return false
+}
+
+func relativeLuminance(r, g, b int) float64 {
+	return (0.299*float64(r) + 0.587*float64(g) + 0.114*float64(b)) / 255.0
 }
 
 // ---------- :::card ----------
@@ -803,6 +916,12 @@ func handleGridFence(args string, lines []string) ([]string, int, error) {
 	if layoutErr != nil {
 		return nil, consumed, layoutErr
 	}
+	fill := false
+	for token := range strings.FieldsSeq(args) {
+		if token == "fill" || token == "stretch" {
+			fill = true
+		}
+	}
 
 	// Children are ::col or ::cell — treat them identically; grid just
 	// needs an ordered list of panes.
@@ -811,8 +930,12 @@ func handleGridFence(args string, lines []string) ([]string, int, error) {
 	if rows > 0 {
 		style += fmt.Sprintf(" grid-template-rows: repeat(%d, 1fr);", rows)
 	}
+	containerClass := "waxon-grid"
+	if fill {
+		containerClass += " waxon-fill"
+	}
 	out = append(out, fmt.Sprintf(
-		`<div class="waxon-grid" style="%s">`, style,
+		`<div class="%s" style="%s">`, containerClass, style,
 	))
 	for _, s := range sections {
 		if s.name != "col" && s.name != "cell" {
@@ -930,6 +1053,7 @@ type flowItem struct {
 	node     flowNode     // kind=="node"
 	arrow    string       // kind=="arrow": "solid" | "dashed"
 	label    string       // kind=="region"
+	color    string       // kind=="region": palette hint for label/body tint
 	inner    []flowItem   // kind=="region"
 	branches [][]flowItem // kind=="fork"
 }
@@ -995,7 +1119,11 @@ func emitFlowItems(items []flowItem, orientation string) []string {
 		case "divider":
 			out = append(out, `<div class="waxon-flow-divider">/</div>`)
 		case "region":
-			out = append(out, `<div class="waxon-flow-region">`)
+			regionClasses := "waxon-flow-region"
+			if c := paletteClass(it.color); c != "" {
+				regionClasses += " " + c
+			}
+			out = append(out, fmt.Sprintf(`<div class="%s">`, regionClasses))
 			if it.label != "" {
 				out = append(out, fmt.Sprintf(
 					`<div class="waxon-flow-region-label">%s</div>`, htmlEscape(it.label),
@@ -1046,18 +1174,26 @@ func parseFlowItems(text string, start int) ([]flowItem, int, error) {
 			i++
 			continue
 		}
-		// Optional palette prefix: .color[...]
+		// Optional palette prefix: `.color[...]` for node, or
+		// `.color{...}` for region/fork (R10-4, R11-4).
 		color := ""
+		regionColor := ""
 		if text[i] == '.' {
 			j := i + 1
 			for j < len(text) && isClassChar(text[j]) {
 				j++
 			}
-			if j > i+1 && j < len(text) && text[j] == '[' {
+			if j > i+1 && j < len(text) {
 				candidate := text[i+1 : j]
 				if _, ok := colorPalette[candidate]; ok {
-					color = candidate
-					i = j
+					switch text[j] {
+					case '[':
+						color = candidate
+						i = j
+					case '{':
+						regionColor = candidate
+						i = j
+					}
 				}
 			}
 		}
@@ -1102,6 +1238,11 @@ func parseFlowItems(text string, start int) ([]flowItem, int, error) {
 			item, err := parseFlowGroup(inner)
 			if err != nil {
 				return nil, i, err
+			}
+			// Prefix color (`.dim{Label: ...}`) applies to the outer item.
+			// In-label color (`{Label aqua: ...}`) is parsed by parseFlowGroup.
+			if regionColor != "" && item.color == "" {
+				item.color = regionColor
 			}
 			items = append(items, item)
 			i = k + 1
@@ -1150,11 +1291,21 @@ func parseFlowGroup(inner string) (flowItem, error) {
 		label := strings.TrimSpace(inner[:idx])
 		body := strings.TrimSpace(inner[idx+1:])
 		if label != "" && !strings.ContainsAny(label, "[]{}|-") {
+			// R10-4: trailing palette word in label becomes region color.
+			// e.g. `{Ingest aqua: ...}` → label="Ingest", color="aqua".
+			color := ""
+			if fields := strings.Fields(label); len(fields) >= 2 {
+				last := fields[len(fields)-1]
+				if _, ok := colorPalette[last]; ok {
+					color = last
+					label = strings.TrimSpace(strings.Join(fields[:len(fields)-1], " "))
+				}
+			}
 			items, _, err := parseFlowItems(body, 0)
 			if err != nil {
 				return flowItem{}, err
 			}
-			return flowItem{kind: "region", label: label, inner: items}, nil
+			return flowItem{kind: "region", label: label, color: color, inner: items}, nil
 		}
 	}
 	items, _, err := parseFlowItems(strings.TrimSpace(inner), 0)
@@ -1428,9 +1579,14 @@ func handleColumnsFence(args string, lines []string) ([]string, int, error) {
 		return nil, consumed, err
 	}
 	n := 2
-	if args != "" {
+	balanced := false
+	for token := range strings.FieldsSeq(args) {
+		if token == "balanced" {
+			balanced = true
+			continue
+		}
 		var parsed int
-		if _, scanErr := fmt.Sscanf(args, "%d", &parsed); scanErr == nil && parsed > 0 {
+		if _, scanErr := fmt.Sscanf(token, "%d", &parsed); scanErr == nil && parsed > 0 {
 			n = parsed
 		}
 	}
@@ -1438,8 +1594,20 @@ func handleColumnsFence(args string, lines []string) ([]string, int, error) {
 	for _, s := range sections {
 		body = append(body, s.body...)
 	}
-	style := fmt.Sprintf("column-count:%d;column-gap:2em", n)
-	return wrapBlockStyled("waxon-columns", style, body), consumed, nil
+	// R10-5: `balanced` switches the container to CSS Grid so items
+	// distribute evenly across columns rather than stacking top-down in
+	// the first column until it overflows. Non-balanced keeps the
+	// `column-count` behaviour for long prose where top-down reading is
+	// natural.
+	classes := "waxon-columns"
+	var style string
+	if balanced {
+		classes += " waxon-columns-balanced"
+		style = fmt.Sprintf("grid-template-columns:repeat(%d, 1fr);gap:2em", n)
+	} else {
+		style = fmt.Sprintf("column-count:%d;column-gap:2em", n)
+	}
+	return wrapBlockStyled(classes, style, body), consumed, nil
 }
 
 // ---------- :::footnote ----------
@@ -1470,25 +1638,35 @@ func handleFootnoteFence(args string, lines []string) ([]string, int, error) {
 // natively parse alphabetic list markers) renders them as a nested
 // alpha-marker list. Triggered when the line's trimmed prefix matches
 // `<single lowercase letter>. ` AND the line is indented; consecutive
-// matching lines become one <ol>. Numeric children aren't disturbed.
+// matching lines become one <ol>.
+//
+// The emitted block is indented to the same column as the matching
+// source lines so the HTML stays inside the enclosing numeric list
+// item (CommonMark treats it as item continuation). A blank line is
+// inserted after the block so a following `3. Third` sibling list
+// item isn't absorbed into the raw HTML block.
 func applyAlphaSubLists(content string) string {
 	lines := strings.Split(content, "\n")
 	var out []string
 	i := 0
 	for i < len(lines) {
 		if isAlphaListLine(lines[i]) {
+			indent := lines[i][:len(lines[i])-len(strings.TrimLeft(lines[i], " \t"))]
 			j := i
 			var items []string
 			for j < len(lines) && isAlphaListLine(lines[j]) {
 				trimmed := strings.TrimLeft(lines[j], " \t")
-				// Strip the `a. ` marker.
 				body := strings.TrimSpace(trimmed[2:])
-				items = append(items, "<li>"+body+"</li>")
+				items = append(items, indent+"<li>"+body+"</li>")
 				j++
 			}
-			out = append(out, `<ol type="a">`)
+			out = append(out, indent+`<ol type="a">`)
 			out = append(out, items...)
-			out = append(out, `</ol>`)
+			out = append(out, indent+`</ol>`)
+			// Blank line separates the raw HTML block from any following
+			// markdown content (especially a sibling numeric list item
+			// like `3. Third` that would otherwise be absorbed).
+			out = append(out, "")
 			i = j
 			continue
 		}
@@ -1783,15 +1961,16 @@ func tryLineLevelColor(text string) (string, bool) {
 	return fmt.Sprintf(`<span class="%s">%s</span>`, class, rest), true
 }
 
-// applyInlineColor rewrites all `.color{text}` and `.badge-color{text}`
-// occurrences in a line. Uses a balanced-brace walker so nested braces
-// `.red{a {b} c}` are handled. On unbalanced or unknown class, leaves
-// text as-is.
+// applyInlineColor rewrites `.color{text}`, `.color[text]`, and their
+// `.badge-color{...}` / `.badge-color[...]` variants in a line. Uses a
+// balanced walker so nested pairs `.red{a {b} c}` are handled. On
+// unbalanced or unknown class, leaves text as-is. Both brace and bracket
+// forms are accepted for consistency across block contexts — e.g. inside
+// `:::card` blocks where `.aqua[text]` previously rendered literally.
 func applyInlineColor(text string) string {
 	var out strings.Builder
 	i := 0
 	for i < len(text) {
-		// Look for `.<class>{` or `.badge-<class>{`.
 		if text[i] != '.' {
 			out.WriteByte(text[i])
 			i++
@@ -1805,7 +1984,18 @@ func applyInlineColor(text string) string {
 		for j < len(text) && (isClassChar(text[j]) || text[j] == '-') {
 			j++
 		}
-		if j == i+1 || j >= len(text) || text[j] != '{' {
+		if j == i+1 || j >= len(text) {
+			out.WriteByte(text[i])
+			i++
+			continue
+		}
+		var openCh, closeCh byte
+		switch text[j] {
+		case '{':
+			openCh, closeCh = '{', '}'
+		case '[':
+			openCh, closeCh = '[', ']'
+		default:
 			out.WriteByte(text[i])
 			i++
 			continue
@@ -1817,14 +2007,14 @@ func applyInlineColor(text string) string {
 			i++
 			continue
 		}
-		// Find matching close brace, counting nesting.
+		// Find matching close, counting nesting of the same delimiter.
 		depth := 1
 		k := j + 1
 		for k < len(text) && depth > 0 {
 			switch text[k] {
-			case '{':
+			case openCh:
 				depth++
-			case '}':
+			case closeCh:
 				depth--
 				if depth == 0 {
 					goto matched
