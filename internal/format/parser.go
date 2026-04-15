@@ -611,12 +611,15 @@ func handleCompareFence(args string, lines []string) ([]string, int, error) {
 	leftRatio, rightRatio := parseCompareRatio(args)
 	brackets := false
 	fill := false
+	clip := false
 	for token := range strings.FieldsSeq(args) {
 		switch token {
 		case "brackets":
 			brackets = true
 		case "fill", "stretch":
 			fill = true
+		case "overflow=clip":
+			clip = true
 		}
 	}
 
@@ -626,6 +629,9 @@ func handleCompareFence(args string, lines []string) ([]string, int, error) {
 	}
 	if fill {
 		containerClass += " waxon-fill"
+	}
+	if clip {
+		containerClass += " waxon-overflow-clip"
 	}
 	out := []string{fmt.Sprintf(`<div class="%s">`, containerClass)}
 	out = append(out, comparePaneHTML("left", left.args, leftRatio, left.body)...)
@@ -838,7 +844,7 @@ func cardClassesAndStyle(args, base string) (classes, style string) {
 			continue
 		}
 		switch token {
-		case "small", "medium", "large":
+		case "small", "medium", "large", "mini", "compact":
 			classes += " waxon-card-" + token
 			continue
 		}
@@ -917,9 +923,16 @@ func handleGridFence(args string, lines []string) ([]string, int, error) {
 		return nil, consumed, layoutErr
 	}
 	fill := false
+	valign := "" // "", "center", "top", "bottom"
+	clip := false
 	for token := range strings.FieldsSeq(args) {
-		if token == "fill" || token == "stretch" {
+		switch {
+		case token == "fill" || token == "stretch":
 			fill = true
+		case token == "overflow=clip":
+			clip = true
+		case strings.HasPrefix(token, "valign="):
+			valign = strings.TrimPrefix(token, "valign=")
 		}
 	}
 
@@ -933,6 +946,17 @@ func handleGridFence(args string, lines []string) ([]string, int, error) {
 	containerClass := "waxon-grid"
 	if fill {
 		containerClass += " waxon-fill"
+	}
+	if clip {
+		containerClass += " waxon-overflow-clip"
+	}
+	switch valign {
+	case "center":
+		containerClass += " waxon-grid-vcenter"
+	case "top":
+		containerClass += " waxon-grid-vtop"
+	case "bottom":
+		containerClass += " waxon-grid-vbottom"
 	}
 	out = append(out, fmt.Sprintf(
 		`<div class="%s" style="%s">`, containerClass, style,
@@ -991,6 +1015,7 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 	wide := false
 	tall := false
 	boxes := false
+	compact := false
 	for token := range strings.FieldsSeq(args) {
 		switch token {
 		case "vertical":
@@ -1003,6 +1028,8 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 			tall = true
 		case "boxes":
 			boxes = true
+		case "compact":
+			compact = true
 		}
 	}
 	// Collect all body lines from all sections (flow has no ::sub-markers).
@@ -1032,6 +1059,9 @@ func handleFlowFence(args string, lines []string) ([]string, int, error) {
 	}
 	if boxes {
 		classes += " waxon-flow-boxes"
+	}
+	if compact {
+		classes += " waxon-flow-compact"
 	}
 	out := []string{fmt.Sprintf(`<div class="%s">`, classes)}
 	out = append(out, emitFlowItems(items, orientation)...)

@@ -99,13 +99,9 @@ func RenderHTML(deck *format.Deck, opts Options) (string, error) {
 		themeOverridden = true
 	}
 
-	var themeCSSInline template.CSS
-	if isThemePath(theme) {
-		css, err := resolveThemePath(theme, opts.DeckDir)
-		if err != nil {
-			return "", err
-		}
-		themeCSSInline = css
+	themeCSSInline, err := resolveThemeStack(theme, deck.Meta, opts.DeckDir)
+	if err != nil {
+		return "", err
 	}
 
 	jsDeck, err := buildJSDeck(deck)
@@ -266,6 +262,87 @@ func commentsOrEmpty(c []format.Comment) []format.Comment {
 	return c
 }
 
+// bgImageURLValueRe matches a CSS bg-image value the deck author wrote,
+// either bare (`./pic.png`, `https://example.com/pic.png`) or already
+// wrapped in `url(...)` with optional quotes. Used to extract the URL so
+// we can reconstruct a sanitized `background-image: url("...")` style.
+var bgImageURLValueRe = regexp.MustCompile(`(?i)^\s*url\s*\(\s*(?:"([^"]*)"|'([^']*)'|([^)]*))\s*\)\s*$`)
+
+// buildSlideStyle composes the inline style attribute for a slide from
+// its bg / bg-image options. It is called from the print path because
+// html/template's CSS sanitizer rejects raw `url(...)` values written
+// directly into a `style="..."` placeholder, replacing them with the
+// `ZgotmplZ` marker. By precomputing the full attribute as template.CSS
+// we tell html/template the value has been validated.
+//
+// Untrusted URL characters (`"`, newlines, `<`) are stripped so a
+// malicious deck cannot break out of the attribute.
+func buildSlideStyle(bg, bgImage string) template.CSS {
+	var parts []string
+	if bgImage != "" {
+		raw := bgImage
+		if m := bgImageURLValueRe.FindStringSubmatch(bgImage); m != nil {
+			for _, g := range m[1:] {
+				if g != "" {
+					raw = g
+					break
+				}
+			}
+		}
+		clean := sanitizeBgImageURL(raw)
+		if clean != "" {
+			parts = append(parts,
+				fmt.Sprintf(`background-image: url("%s")`, clean),
+				"background-size: cover",
+				"background-position: center",
+			)
+		}
+	}
+	if bg != "" {
+		clean := sanitizeCSSValue(bg)
+		if clean != "" {
+			if bgImage != "" {
+				parts = append(parts, "background-color: "+clean)
+			} else {
+				parts = append(parts, "background: "+clean)
+			}
+		}
+	}
+	if len(parts) == 0 {
+		return ""
+	}
+	return template.CSS(strings.Join(parts, "; "))
+}
+
+// sanitizeBgImageURL strips characters that would let a deck author
+// break out of a `url("...")` literal. We allow standard URL bytes plus
+// the path/query characters Markdown decks commonly use.
+func sanitizeBgImageURL(s string) string {
+	s = strings.TrimSpace(s)
+	var b strings.Builder
+	for _, r := range s {
+		if r == '"' || r == '\\' || r == '<' || r == '>' || r == '\n' || r == '\r' {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+// sanitizeCSSValue strips characters that would let a value escape its
+// declaration ("`;`", braces, comments, quotes, control bytes).
+func sanitizeCSSValue(s string) string {
+	s = strings.TrimSpace(s)
+	var b strings.Builder
+	for _, r := range s {
+		if r == ';' || r == '{' || r == '}' || r == '"' || r == '\'' || r == '<' || r == '>' || r == '\n' || r == '\r' {
+			continue
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
 type templateData struct {
 	Title           string
 	Author          string
@@ -299,6 +376,66 @@ var ThemeCSS = func(theme string) template.CSS {
 // suffixes so a theme named `foo` is never misinterpreted.
 func isThemePath(theme string) bool {
 	return strings.HasSuffix(theme, ".css")
+}
+
+// resolveThemeStack composes the final theme CSS for a deck, layering a
+// primary theme with `theme-overlay:` and `themes:` extras (R15-5). The
+// effective stack is, in order: themes[0..n-1] (if set) → primary →
+// theme-overlay (if set). Later layers override earlier ones because CSS
+// cascade picks the last matching rule of equal specificity.
+//
+// A built-in theme name resolves via the embedded ThemeCSS lookup; a
+// path ending in .css is read from disk relative to deckDir. The two
+// forms can be mixed freely, so authors can write
+//
+//	theme: customer-base
+//	theme-overlay: ./brand.css
+//
+// to layer brand colours over a built-in component theme. Returns the
+// combined CSS as a single template.CSS value, or "" when no layers are
+// configured (the page template falls back to the named theme lookup).
+func resolveThemeStack(primary string, meta format.Meta, deckDir string) (template.CSS, error) {
+	var layers []string
+	layers = append(layers, meta.Themes...)
+	if primary != "" {
+		layers = append(layers, primary)
+	}
+	if meta.ThemeOverlay != "" {
+		layers = append(layers, meta.ThemeOverlay)
+	}
+	if len(layers) <= 1 && (len(layers) == 0 || !isThemePath(layers[0])) {
+		// Single built-in theme — let the page template resolve it via
+		// the themeCSS func so we don't duplicate the CSS payload.
+		return "", nil
+	}
+	var sb strings.Builder
+	for _, ref := range layers {
+		if ref == "" {
+			continue
+		}
+		if isThemePath(ref) {
+			css, err := resolveThemePath(ref, deckDir)
+			if err != nil {
+				return "", err
+			}
+			sb.WriteString("/* theme: ")
+			sb.WriteString(ref)
+			sb.WriteString(" */\n")
+			sb.WriteString(string(css))
+			sb.WriteString("\n")
+			continue
+		}
+		body := ThemeCSS(ref)
+		if body == "" {
+			return "", fmt.Errorf("unknown theme %q", ref)
+		}
+		sb.WriteString("/* theme: ")
+		sb.WriteString(ref)
+		sb.WriteString(" */\n")
+		sb.WriteString(string(body))
+		sb.WriteString("\n")
+	}
+	return template.CSS(sb.String()), nil
 }
 
 // resolveThemePath loads the CSS file referenced by a `theme: ./foo.css`
@@ -373,23 +510,21 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 		theme = opts.ThemeOverride
 	}
 
-	var themeCSSInline template.CSS
-	if isThemePath(theme) {
-		css, err := resolveThemePath(theme, opts.DeckDir)
-		if err != nil {
-			return "", err
-		}
-		themeCSSInline = css
+	themeCSSInline, err := resolveThemeStack(theme, deck.Meta, opts.DeckDir)
+	if err != nil {
+		return "", err
 	}
 
 	type printSlide struct {
-		Index   int
-		ID      string
-		Class   string
-		Bg      string
-		BgImage string
-		Valign  string
-		HTML    template.HTML
+		Index int
+		ID    string
+		Class string
+		// Style is the precomputed inline style attribute value (already
+		// CSS-safe). Built from Background and BgImage so html/template's
+		// CSS sanitizer doesn't strip `url(...)` to ZgotmplZ.
+		Style  template.CSS
+		Valign string
+		HTML   template.HTML
 	}
 	slides := make([]printSlide, 0, len(deck.Slides))
 	for i, s := range deck.Slides {
@@ -401,9 +536,8 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 		ps := printSlide{Index: i, ID: s.ID, HTML: template.HTML(html)}
 		if s.SlideOpts != nil {
 			ps.Class = s.SlideOpts.Class
-			ps.Bg = s.SlideOpts.Background
-			ps.BgImage = s.SlideOpts.BgImage
 			ps.Valign = s.SlideOpts.Valign
+			ps.Style = buildSlideStyle(s.SlideOpts.Background, s.SlideOpts.BgImage)
 		}
 		slides = append(slides, ps)
 	}
@@ -804,6 +938,31 @@ html, body {
 :where(.slide) .waxon-card.waxon-card-small { padding: 0.5em 0.8em; }
 :where(.slide) .waxon-card.waxon-card-medium { max-width: 28em; }
 :where(.slide) .waxon-card.waxon-card-large  { max-width: 42em; }
+/* R14-1: mini and compact cards exist for 3x3 grids of micro-annotations
+ * below a flow diagram. Goal is to maximize content density without
+ * collapsing the visual card identity. compact is roughly between small
+ * and mini. */
+:where(.slide) .waxon-card.waxon-card-compact {
+  font-size: 0.78em;
+  padding: 0.35em 0.55em;
+  margin: 0.2em 0;
+  line-height: 1.3;
+}
+:where(.slide) .waxon-card.waxon-card-mini {
+  font-size: 0.7em;
+  padding: 0.25em 0.45em;
+  margin: 0.15em 0;
+  line-height: 1.25;
+  border-width: 1px;
+}
+:where(.slide) .waxon-card.waxon-card-compact h1,
+:where(.slide) .waxon-card.waxon-card-compact h2,
+:where(.slide) .waxon-card.waxon-card-compact h3,
+:where(.slide) .waxon-card.waxon-card-mini h1,
+:where(.slide) .waxon-card.waxon-card-mini h2,
+:where(.slide) .waxon-card.waxon-card-mini h3 { font-size: 1em; margin-bottom: 0.15em; }
+:where(.slide) .waxon-card.waxon-card-compact p,
+:where(.slide) .waxon-card.waxon-card-mini p { margin-bottom: 0.25em; }
 :where(.slide) .waxon-card-left {
   border: none;
   border-left: 4px solid var(--foreground2, currentColor);
@@ -847,6 +1006,16 @@ html, body {
   align-items: center;
   margin: 1em 0;
   flex-wrap: wrap;
+  min-width: 0;
+}
+/* R13-1: horizontal flows with 3+ regions were wrapping each region to its
+ * own row because the cumulative width exceeded the slide. Force a single
+ * row, let regions shrink, and allow horizontal overflow as a safety valve.
+ * Vertical flows keep the column layout below. */
+:where(.slide) .waxon-flow-horizontal {
+  flex-wrap: nowrap;
+  align-items: stretch;
+  overflow-x: auto;
 }
 :where(.slide) .waxon-flow-vertical {
   flex-direction: column;
@@ -886,6 +1055,23 @@ html, body {
   border-radius: 8px;
   box-shadow: 0 2px 6px color-mix(in srgb, #000 20%, transparent);
 }
+/* R13-4: strengthen boxes on dark themes so the modifier is visibly
+ * different from plain or tall flows. The light overlay reads on most
+ * background luminances and the heavier shadow gives depth. */
+:where(.slide) .waxon-flow-boxes .waxon-flow-node {
+  background: color-mix(in srgb, currentColor 14%, transparent);
+  box-shadow: 0 3px 10px rgba(0,0,0,0.45);
+}
+/* R14-2: compact reduces padding, font, gap, and arrow size to fit a
+ * dense flow inside a slide that also needs substantial content below. */
+:where(.slide) .waxon-flow-compact { gap: 0.35em; margin: 0.5em 0; font-size: 0.85em; }
+:where(.slide) .waxon-flow-compact .waxon-flow-node { padding: 0.35em 0.7em; min-height: auto; }
+:where(.slide) .waxon-flow-compact.waxon-flow-tall .waxon-flow-node,
+:where(.slide) .waxon-flow-compact.waxon-flow-boxes .waxon-flow-node { min-height: 2.6em; padding: 0.4em 0.7em; }
+:where(.slide) .waxon-flow-compact.waxon-flow-wide .waxon-flow-node { min-width: 6em; }
+:where(.slide) .waxon-flow-compact .waxon-flow-arrow { font-size: 1.1em; padding: 0 0.1em; }
+:where(.slide) .waxon-flow-compact .waxon-flow-region { padding: 0.3em 0.4em; gap: 0.2em; }
+:where(.slide) .waxon-flow-compact .waxon-flow-region-label { font-size: 0.6em; }
 :where(.slide) .waxon-flow-node.red    { border-color: var(--color-red,    #ef4444); color: var(--color-red,    #ef4444); }
 :where(.slide) .waxon-flow-node.green  { border-color: var(--color-green,  #22c55e); color: var(--color-green,  #22c55e); }
 :where(.slide) .waxon-flow-node.yellow { border-color: var(--color-yellow, #eab308); color: var(--color-yellow, #eab308); }
@@ -1071,6 +1257,18 @@ html, body {
 :where(.slide) .waxon-columns.waxon-columns-balanced > * {
   break-inside: auto;
 }
+/* Lists are the most common balanced-columns body. Without display:contents
+ * the <ul> would be the single grid child and every <li> would stack inside
+ * one column. Promoting <li>s to direct grid children fixes the split. */
+:where(.slide) .waxon-columns.waxon-columns-balanced > ul,
+:where(.slide) .waxon-columns.waxon-columns-balanced > ol {
+  display: contents;
+}
+:where(.slide) .waxon-columns.waxon-columns-balanced > ul > li,
+:where(.slide) .waxon-columns.waxon-columns-balanced > ol > li {
+  list-style-position: inside;
+  margin: 0.15em 0;
+}
 /* R12-1: fill modifier stretches a grid to consume remaining vertical
  * slide space so footnotes sit tight against the bottom. */
 :where(.slide) .waxon-grid.waxon-fill {
@@ -1078,6 +1276,15 @@ html, body {
   align-self: stretch;
   height: 100%;
 }
+/* R13-2: with the fill modifier the grid grows but cells default to
+ * start-aligned, so a small :::stat sits at the top of a tall cell.
+ * valign= centers, tops, or bottoms cell content within its track. */
+:where(.slide) .waxon-grid.waxon-grid-vcenter > .waxon-grid-cell { align-self: center; justify-content: center; }
+:where(.slide) .waxon-grid.waxon-grid-vtop    > .waxon-grid-cell { align-self: start;  justify-content: flex-start; }
+:where(.slide) .waxon-grid.waxon-grid-vbottom > .waxon-grid-cell { align-self: end;    justify-content: flex-end; }
+/* R14-3: overflow=clip prevents grid/compare content from spilling past
+ * the slide bounds when authors stuff in too much. */
+:where(.slide) .waxon-overflow-clip { overflow: hidden; }
 
 /* ---------- :::image (R10-1) ----------
  * Wrapper for sized inline images. Children render with the normal img
@@ -1144,6 +1351,10 @@ html, body {
   border-radius: 6px;
   background: color-mix(in srgb, var(--accent, currentColor) 8%, transparent);
   border: 1px dashed color-mix(in srgb, var(--accent, currentColor) 40%, transparent);
+  /* Allow regions to shrink inside a no-wrap horizontal flow so 3+
+   * regions stay on a single row instead of overflowing the slide. */
+  min-width: 0;
+  flex-shrink: 1;
 }
 :where(.slide) .waxon-flow-vertical .waxon-flow-region {
   align-self: stretch;
@@ -3249,7 +3460,7 @@ html, body {
 <body>
 <div class="deck"{{if .Transition}} data-transition="{{.Transition}}"{{end}}>
 {{range $i, $s := .Slides}}
-<div class="slide{{if $s.Class}} {{$s.Class}}{{end}}" data-index="{{$s.Index}}"{{if $s.ID}} id="{{$s.ID}}"{{end}}{{if $s.Valign}} data-valign="{{$s.Valign}}"{{end}}{{if $s.BgImage}} style="background-image: {{$s.BgImage}}; background-size: cover; background-position: center;{{if $s.Bg}} background-color: {{$s.Bg}};{{end}}"{{else if $s.Bg}} style="background: {{$s.Bg}}"{{end}}>
+<div class="slide{{if $s.Class}} {{$s.Class}}{{end}}" data-index="{{$s.Index}}"{{if $s.ID}} id="{{$s.ID}}"{{end}}{{if $s.Valign}} data-valign="{{$s.Valign}}"{{end}}{{if $s.Style}} style="{{$s.Style}}"{{end}}>
 {{$s.HTML}}
 {{if or $.Footer $.FooterLeft $.FooterRight}}<div class="footer">
 <div class="footer-left">{{pageFooter $.FooterLeft (inc $i) (len $.Slides)}}</div>

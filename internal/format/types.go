@@ -9,18 +9,21 @@ type Deck struct {
 
 // Meta holds the YAML frontmatter metadata.
 type Meta struct {
-	Title           string   `yaml:"title" json:"title"`
-	Author          string   `yaml:"author,omitempty" json:"author,omitempty"`
-	Date            string   `yaml:"date,omitempty" json:"date,omitempty"`
-	Theme           string   `yaml:"theme,omitempty" json:"theme,omitempty"`
-	Aspect          string   `yaml:"aspect,omitempty" json:"aspect,omitempty"`
-	Footer          string   `yaml:"footer,omitempty" json:"footer,omitempty"`
-	FooterLeft      string   `yaml:"footer-left,omitempty" json:"footer_left,omitempty"`
-	FooterRight     string   `yaml:"footer-right,omitempty" json:"footer_right,omitempty"`
-	Transition      string   `yaml:"transition,omitempty" json:"transition,omitempty"`
-	TerminalVariant string   `yaml:"terminal-variant,omitempty" json:"terminal_variant,omitempty"`
-	TerminalEffects bool     `yaml:"terminal-effects,omitempty" json:"terminal_effects,omitempty"`
-	Fonts           []string `yaml:"fonts,omitempty" json:"fonts,omitempty"`
+	Title           string         `yaml:"title" json:"title"`
+	Author          string         `yaml:"author,omitempty" json:"author,omitempty"`
+	Date            string         `yaml:"date,omitempty" json:"date,omitempty"`
+	Theme           string         `yaml:"theme,omitempty" json:"theme,omitempty"`
+	ThemeOverlay    string         `yaml:"theme-overlay,omitempty" json:"theme_overlay,omitempty"`
+	Themes          []string       `yaml:"themes,omitempty" json:"themes,omitempty"`
+	Aspect          string         `yaml:"aspect,omitempty" json:"aspect,omitempty"`
+	Footer          string         `yaml:"footer,omitempty" json:"footer,omitempty"`
+	FooterLeft      string         `yaml:"footer-left,omitempty" json:"footer_left,omitempty"`
+	FooterRight     string         `yaml:"footer-right,omitempty" json:"footer_right,omitempty"`
+	Transition      string         `yaml:"transition,omitempty" json:"transition,omitempty"`
+	TerminalVariant string         `yaml:"terminal-variant,omitempty" json:"terminal_variant,omitempty"`
+	TerminalEffects bool           `yaml:"terminal-effects,omitempty" json:"terminal_effects,omitempty"`
+	Fonts           []string       `yaml:"fonts,omitempty" json:"fonts,omitempty"`
+	Vars            map[string]any `yaml:"vars,omitempty" json:"vars,omitempty"`
 }
 
 // Slide represents a single slide in the deck.

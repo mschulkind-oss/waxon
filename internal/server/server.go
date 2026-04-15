@@ -309,17 +309,21 @@ func (s *Server) discoverDecks() ([]string, error) {
 	return out, nil
 }
 
-// loadDeck reads + parses one .slides file by its relative path.
+// loadDeck reads + parses one .slides file (or .yaml manifest) by its
+// relative path. The full preprocessing pipeline runs so includes and
+// template vars work in `waxon serve` exactly as they do in `export`.
 func (s *Server) loadDeck(relPath string) (*deckEntry, error) {
 	abs, err := s.resolveAbs(relPath)
 	if err != nil {
 		return nil, err
 	}
-	data, err := os.ReadFile(abs)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", relPath, err)
+	low := strings.ToLower(abs)
+	var deck *format.Deck
+	if strings.HasSuffix(low, ".yaml") || strings.HasSuffix(low, ".yml") {
+		deck, err = format.LoadManifest(abs, nil)
+	} else {
+		deck, err = format.ParseFile(abs, nil)
 	}
-	deck, err := format.Parse(string(data))
 	if err != nil {
 		return nil, fmt.Errorf("parse %s: %w", relPath, err)
 	}
@@ -518,6 +522,16 @@ func (s *Server) handleDeck(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
+	// R13-3: Chrome DevTools probes (and any client that closes mid-handshake
+	// or sends inbound frames the server doesn't read) used to crash the
+	// process. Recover from any panic that escapes a malformed upgrade so
+	// `waxon serve` keeps running. The stack is logged but not propagated.
+	defer func() {
+		if rec := recover(); rec != nil {
+			s.logger.Printf("ws handler panic recovered: %v", rec)
+		}
+	}()
+
 	conn, err := websocket.Accept(w, r, &websocket.AcceptOptions{
 		InsecureSkipVerify: true,
 	})
@@ -532,13 +546,21 @@ func (s *Server) handleWS(w http.ResponseWriter, r *http.Request) {
 	s.addScopedClient(scope, ch)
 	defer s.removeClient(ch)
 
-	ctx := r.Context()
+	// We don't expect the browser to send messages — only reload pings flow
+	// server→client. CloseRead spawns a goroutine that reads (and discards)
+	// inbound frames so the connection's flow control stays healthy. Without
+	// it a client that sends data (DevTools' protocol probes do) blocks
+	// the underlying TCP buffer and can wedge the conn.
+	ctx := conn.CloseRead(r.Context())
+
 	for {
 		select {
 		case <-ctx.Done():
 			return
 		case <-ch:
-			err := conn.Write(ctx, websocket.MessageText, []byte("reload"))
+			writeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			err := conn.Write(writeCtx, websocket.MessageText, []byte("reload"))
+			cancel()
 			if err != nil {
 				return
 			}

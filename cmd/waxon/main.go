@@ -170,12 +170,13 @@ editing one deck only reloads browsers viewing that deck.
 
 func exportCmd() *cobra.Command {
 	var (
-		output  string
-		theme   string
-		variant string
-		pages   string
-		format_ string
-		notes   bool
+		output    string
+		theme     string
+		variant   string
+		pages     string
+		format_   string
+		notes     bool
+		varsFlags []string
 	)
 
 	cmd := &cobra.Command{
@@ -206,12 +207,11 @@ panel. Works without a server.
   waxon export deck.slides --theme corporate -o quarterly.pdf`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			data, err := os.ReadFile(args[0])
+			extraVars, err := parseVarFlags(varsFlags)
 			if err != nil {
 				return err
 			}
-
-			deck, err := format.Parse(string(data))
+			deck, err := loadDeck(args[0], extraVars)
 			if err != nil {
 				return err
 			}
@@ -279,8 +279,42 @@ panel. Works without a server.
 	cmd.Flags().StringVar(&pages, "pages", "", "Page range (e.g., 1-5, 3,7,9) — pdf only")
 	cmd.Flags().StringVar(&format_, "format", "", "Output format: pdf (default) or html")
 	cmd.Flags().BoolVar(&notes, "notes", false, "Bundle speaker notes panel (html only)")
+	cmd.Flags().StringArrayVar(&varsFlags, "var", nil, "Set a template variable (key=value). Repeatable.")
 
 	return cmd
+}
+
+// loadDeck reads a deck file (.slides or .yaml manifest) and applies the
+// full preprocessing pipeline: include expansion, frontmatter vars, and
+// Go template substitution. Manifests are detected by extension.
+func loadDeck(path string, extraVars map[string]any) (*format.Deck, error) {
+	low := strings.ToLower(path)
+	if strings.HasSuffix(low, ".yaml") || strings.HasSuffix(low, ".yml") {
+		return format.LoadManifest(path, extraVars)
+	}
+	return format.ParseFile(path, extraVars)
+}
+
+// parseVarFlags converts repeated `--var key=value` flags into a vars map
+// suitable for ParseFile/LoadManifest. Empty entries are skipped; missing
+// `=` or empty keys produce an explicit error so typos surface early.
+func parseVarFlags(flags []string) (map[string]any, error) {
+	if len(flags) == 0 {
+		return nil, nil
+	}
+	out := make(map[string]any, len(flags))
+	for _, f := range flags {
+		f = strings.TrimSpace(f)
+		if f == "" {
+			continue
+		}
+		eq := strings.Index(f, "=")
+		if eq <= 0 {
+			return nil, fmt.Errorf("--var %q must be key=value", f)
+		}
+		out[strings.TrimSpace(f[:eq])] = strings.TrimSpace(f[eq+1:])
+	}
+	return out, nil
 }
 
 func newCmd() *cobra.Command {
@@ -606,12 +640,7 @@ any agent or LLM:
   waxon agent-context deck.slides | claude "suggest improvements"`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			data, err := os.ReadFile(args[0])
-			if err != nil {
-				return err
-			}
-
-			deck, err := format.Parse(string(data))
+			deck, err := loadDeck(args[0], nil)
 			if err != nil {
 				return err
 			}
