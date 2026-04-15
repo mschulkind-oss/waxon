@@ -2,6 +2,7 @@ package pdf
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -147,6 +148,27 @@ func TestPaperSizeEmpty(t *testing.T) {
 	w, h := paperSize("")
 	if w != 10.0 || h != 5.625 {
 		t.Errorf("empty aspect should default to 16:9, got %fx%f", w, h)
+	}
+}
+
+func TestIsChromeStartupFailure(t *testing.T) {
+	cases := []struct {
+		msg  string
+		want bool
+	}{
+		{"chromedp: chrome failed to start: some nested output", true},
+		{"Check failed: ThreadCache::IsValid(tcache).", true},
+		{"FATAL:scheduler_loop_quarantine_support.h(101)", true},
+		{"websocket: bad handshake", true},
+		{"context deadline exceeded", false},
+		{"template: missing field", false},
+		{"", false},
+	}
+	for _, tc := range cases {
+		got := isChromeStartupFailure(errors.New(tc.msg))
+		if got != tc.want {
+			t.Errorf("isChromeStartupFailure(%q) = %v, want %v", tc.msg, got, tc.want)
+		}
 	}
 }
 
