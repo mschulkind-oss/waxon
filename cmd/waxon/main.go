@@ -64,10 +64,10 @@ collaborate on the same ` + bold.Sprint(".slides") + ` file.
 
 ` + dim.Sprint("Available themes:") + ` default, light, corporate, minimal, vibrant, terminal
 ` + dim.Sprint("Run") + ` ` + info.Sprint("waxon themes") + ` ` + dim.Sprint("to see them all."),
-		Version: version.String(),
+		Version: version.Full(),
 	}
 
-	cmd.SetVersionTemplate(accent.Sprint("waxon") + " {{.Version}}\n")
+	cmd.SetVersionTemplate("{{.Version}}\n")
 
 	cmd.PersistentFlags().StringSliceVar(&themeDirs, "theme-dir", nil,
 		"Additional directory to load external .css themes from (repeatable)")

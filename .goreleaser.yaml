@@ -14,6 +14,8 @@ builds:
       - -s -w
       - -X github.com/mschulkind-oss/waxon/internal/version.Version={{.Version}}
       - -X github.com/mschulkind-oss/waxon/internal/version.GitCommit={{.ShortCommit}}
+      - -X github.com/mschulkind-oss/waxon/internal/version.Date={{.Date}}
+      - -X github.com/mschulkind-oss/waxon/internal/version.BuiltBy=goreleaser
       - -X github.com/mschulkind-oss/waxon/internal/version.Dirty=false
     env:
       - CGO_ENABLED=0
