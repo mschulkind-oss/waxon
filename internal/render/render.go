@@ -1541,12 +1541,19 @@ html, body {
   border-radius: 8px;
   padding: 4px;
   box-shadow: 0 4px 16px color-mix(in srgb, #000 30%, transparent);
-  transition: right 0.18s ease-out;
+  transition: right 0.18s ease-out, transform 0.18s ease-out, opacity 0.18s ease-out;
 }
 /* When a right-side panel is open, slide the FAB left so its buttons
  * don't overlap the panel content. Panel width matches .panel rule. */
 .app:has(.panel.open) .fab {
   right: calc(min(420px, 88vw) + 1.5vmin);
+}
+/* Hidden state (Shift+H, or auto-hidden in fullscreen). Slides down out of
+ * view and goes non-interactive so it can't catch clicks while invisible. */
+.fab.fab-hidden {
+  transform: translateY(calc(100% + 2vmin));
+  opacity: 0;
+  pointer-events: none;
 }
 .fab .group { display: flex; gap: 2px; }
 .fab .divider {
@@ -2143,6 +2150,7 @@ html, body {
       <tr><td><kbd>+</kbd> / <kbd>-</kbd></td><td>Zoom in / out (reflows content)</td></tr>
       <tr><td><kbd>r</kbd></td><td>Reset variant, compare, zoom</td></tr>
       <tr><td><kbd>f</kbd></td><td>Toggle fullscreen</td></tr>
+      <tr><td><kbd>Shift</kbd>+<kbd>H</kbd></td><td>Show / hide the toolbar (auto-hides in fullscreen)</td></tr>
     </table>
     <div class="hint">
       Click a comment in the Comments panel to jump to that slide. The
@@ -2850,6 +2858,30 @@ html, body {
   function zoomReset() { zoomLevel = 1; applyZoom(); flashBanner('Zoom 100%'); }
   applyZoom();
 
+  // ---------- Toolbar (FAB) visibility ----------
+  // The bottom-right control bar can be hidden two ways: a manual toggle
+  // (Shift+H), persisted to localStorage, and an automatic hide whenever the
+  // deck is presented fullscreen. The bar is hidden if EITHER is true; exiting
+  // fullscreen restores the user's manual preference rather than forcing it on.
+  var fab = document.querySelector('.fab');
+  var fabHidden = false;       // manual preference (persisted)
+  var fabAutoHidden = false;   // transient: hidden because we're fullscreen
+  try { fabHidden = localStorage.getItem('waxon-fab-hidden') === '1'; } catch (e) {}
+  function applyFabVisibility() {
+    if (fab) fab.classList.toggle('fab-hidden', fabHidden || fabAutoHidden);
+  }
+  function toggleFab() {
+    fabHidden = !fabHidden;
+    try { localStorage.setItem('waxon-fab-hidden', fabHidden ? '1' : '0'); } catch (e) {}
+    applyFabVisibility();
+    flashBanner(fabHidden ? 'Toolbar hidden — Shift+H to show' : 'Toolbar shown');
+  }
+  document.addEventListener('fullscreenchange', function() {
+    fabAutoHidden = !!document.fullscreenElement;
+    applyFabVisibility();
+  });
+  applyFabVisibility();
+
   // ---------- Comment composing lifecycle ----------
   function startComposing() {
     if (commentComposing) return;
@@ -3011,6 +3043,7 @@ html, body {
       case 't': e.preventDefault(); togglePanel('themes'); return;
       case 'T': e.preventDefault(); cycleTheme(1); return;
       case 'N': e.preventDefault(); togglePanel('notes'); return;
+      case 'H': e.preventDefault(); toggleFab(); return;
       case 'x': e.preventDefault(); compareMode = !compareMode; render(); return;
       case '[': e.preventDefault(); cycleVariant(-1); return;
       case ']': e.preventDefault(); cycleVariant(1); return;

@@ -43,3 +43,27 @@ func TestZoomControlsPresentInInteractivePage(t *testing.T) {
 		t.Errorf("print page should not contain the zoom toolbar")
 	}
 }
+
+func TestToolbarToggleWiredInInteractivePage(t *testing.T) {
+	deck, err := format.Parse("---\ntitle: t\n---\n\n# Hello\n\nworld\n")
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	html, err := RenderHTML(deck, Options{})
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	wants := []string{
+		`.fab.fab-hidden`,    // the hidden-state CSS
+		`function toggleFab`, // the toggle handler
+		`case 'H':`,          // Shift+H keybinding
+		`fullscreenchange`,   // auto-hide on fullscreen
+		`localStorage.setItem('waxon-fab-hidden'`, // persisted preference
+		`<kbd>Shift</kbd>+<kbd>H</kbd>`,           // documented in help overlay
+	}
+	for _, w := range wants {
+		if !strings.Contains(html, w) {
+			t.Errorf("interactive page missing toolbar-toggle wiring %q", w)
+		}
+	}
+}
