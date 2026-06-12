@@ -2041,6 +2041,12 @@ html, body {
     </div>
     <div class="divider"></div>
     <div class="group">
+      <button type="button" data-action="zoom-out" aria-label="Zoom text out (-)" title="Smaller text — -">−</button>
+      <button type="button" data-action="zoom-reset" id="zoom-level" aria-label="Reset zoom to 100% (0)" title="Reset zoom — 0">100%</button>
+      <button type="button" data-action="zoom-in" aria-label="Zoom text in (+)" title="Bigger text — +">+</button>
+    </div>
+    <div class="divider"></div>
+    <div class="group">
       <button type="button" data-action="compare" aria-pressed="false" aria-label="Toggle compare mode (x)" title="Compare main vs variant — x"><kbd>x</kbd> compare</button>
       <button type="button" data-action="help" aria-label="Show keyboard shortcuts (?)" title="Keyboard shortcuts — ?"><kbd>?</kbd></button>
     </div>
@@ -2834,6 +2840,9 @@ html, body {
   } catch (e) {}
   function applyZoom() {
     document.documentElement.style.setProperty('--waxon-zoom', String(zoomLevel));
+    var pct = Math.round(zoomLevel * 100) + '%';
+    var zl = document.getElementById('zoom-level');
+    if (zl) { zl.textContent = pct; zl.setAttribute('aria-label', 'Reset zoom (currently ' + pct + ') — 0'); }
     try { localStorage.setItem('waxon-zoom', String(zoomLevel)); } catch (e) {}
   }
   function zoomIn()    { zoomLevel = Math.min(3, Math.round((zoomLevel + 0.1) * 100) / 100); applyZoom(); flashBanner('Zoom ' + Math.round(zoomLevel * 100) + '%'); }
@@ -2926,6 +2935,9 @@ html, body {
       var action = b.getAttribute('data-action');
       if (action === 'help') toggleHelp();
       else if (action === 'compare') { compareMode = !compareMode; render(); }
+      else if (action === 'zoom-in') zoomIn();
+      else if (action === 'zoom-out') zoomOut();
+      else if (action === 'zoom-reset') zoomReset();
       else togglePanel(action);
     });
   });
