@@ -1608,9 +1608,14 @@ html, body {
   flex-direction: column;
   z-index: 200;
   font-size: var(--chrome-font);
+}
+/* Shadow only while open. The panel's leftward shadow (-8px) projects onto the
+ * slide; left on the base rule it lingers as a phantom strip on the right edge
+ * even after the panel slides off-screen. Gate it on .open so it leaves too. */
+.panel.open {
+  transform: translateX(0);
   box-shadow: -8px 0 24px color-mix(in srgb, #000 35%, transparent);
 }
-.panel.open { transform: translateX(0); }
 .panel-header {
   padding: 12px 16px;
   border-bottom: 1px solid var(--chrome-border);
