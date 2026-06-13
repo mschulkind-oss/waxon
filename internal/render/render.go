@@ -608,6 +608,10 @@ func init() {
 	// own init(), which may run after this init() — capturing the bare
 	// variable would lock in the empty stub.
 	themeCSSFn := func(theme string) template.CSS { return ThemeCSS(theme) }
+	// componentCSSFn injects the shared builtin component layout rules. Both
+	// the interactive and print templates call {{componentCSS}} so PDF
+	// exports get the same :::-fence layout as the live UI.
+	componentCSSFn := func() template.CSS { return template.CSS(componentCSS) }
 	incFn := func(i int) int { return i + 1 }
 	pageFooterFn := func(tpl string, n, total int) string {
 		if tpl == "" {
@@ -621,9 +625,10 @@ func init() {
 		return r.Replace(tpl)
 	}
 	funcs := template.FuncMap{
-		"themeCSS":   themeCSSFn,
-		"inc":        incFn,
-		"pageFooter": pageFooterFn,
+		"themeCSS":     themeCSSFn,
+		"componentCSS": componentCSSFn,
+		"inc":          incFn,
+		"pageFooter":   pageFooterFn,
 	}
 	pageTmpl = template.Must(template.New("page").Funcs(funcs).Parse(pageTemplate))
 	indexTmpl = template.Must(template.New("index").Parse(indexTemplate))
@@ -637,210 +642,14 @@ func MarshalDeckListJSON(decks []DeckSummary) string {
 	return strings.TrimSpace(string(b))
 }
 
-const pageTemplate = `<!DOCTYPE html>
-<html lang="en" data-theme="{{.Theme}}"{{if .TerminalVariant}} data-terminal-variant="{{.TerminalVariant}}"{{end}}>
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{{.Title}}</title>
-<style>
-/*
- * Layered architecture:
- *  - The "slide" class is shared with the print template and the 20 themes,
- *    so theme rules like ".slide h1 { color: ... }" apply identically in
- *    the live UI and PDF export.
- *  - Chrome (banner, panels, FAB, help overlay) lives in its own --chrome-*
- *    variable space and uses fixed-px sizing so it never scales with the
- *    slide font-size.
- */
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-:root {
-  --slide-bg: #1a1a2e;
-  --slide-fg: #e0e0e0;
-  --accent: #7c3aed;
-  --font-body: system-ui, -apple-system, sans-serif;
-  --font-heading: system-ui, -apple-system, sans-serif;
-  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
-  --slide-padding: 5vmin;
-
-  /* Chrome variables — fixed-px, theme-aware */
-  --chrome-fg: var(--slide-fg);
-  --chrome-bg: color-mix(in srgb, var(--slide-bg) 88%, #000 12%);
-  --chrome-border: color-mix(in srgb, var(--slide-fg) 18%, transparent);
-  --chrome-hover: color-mix(in srgb, var(--accent) 25%, transparent);
-  --chrome-active: color-mix(in srgb, var(--accent) 40%, transparent);
-  --chrome-font: 13px;
-  --chrome-font-sm: 12px;
-  --chrome-font-lg: 15px;
-  --backdrop: color-mix(in srgb, var(--slide-bg) 70%, #000 60%);
-}
-
-html, body {
-  height: 100%;
-  overflow: hidden;
-  background: var(--slide-bg);
-  color: var(--slide-fg);
-  font-family: var(--font-body);
-  font-size: calc(clamp(16px, 2.5vmin, 28px) * var(--waxon-zoom, 1));
-  line-height: 1.5;
-}
-
-.app {
-  width: 100vw;
-  height: 100vh;
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  outline: none;
-  /* Clip the off-screen panels so they don't extend document scrollWidth;
-   * without this, focus() on a panel descendant scrolls the body 420px and
-   * the hidden panels become visible. */
-  overflow: hidden;
-}
-
-/* ---------- Banner ---------- */
-.banner {
-  display: none;
-  align-items: center;
-  gap: 0.6em;
-  padding: 8px 14px;
-  background: color-mix(in srgb, var(--accent) 14%, var(--chrome-bg));
-  color: var(--chrome-fg);
-  font-size: var(--chrome-font);
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  z-index: 100;
-}
-.banner.active { display: flex; }
-.banner .label { font-weight: 600; opacity: 0.85; }
-.banner .pill {
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: var(--chrome-font-sm);
-  font-family: var(--font-mono);
-}
-.banner .spacer { flex: 1; }
-.banner button {
-  background: transparent;
-  border: 1px solid var(--chrome-border);
-  color: inherit;
-  padding: 3px 10px;
-  border-radius: 4px;
-  font: inherit;
-  font-size: var(--chrome-font-sm);
-  cursor: pointer;
-}
-.banner button:hover { background: color-mix(in srgb, var(--chrome-fg) 10%, transparent); }
-.banner button + button { margin-left: 4px; }
-
-/* ---------- Deck area ---------- */
-.deck-area { flex: 1; position: relative; min-height: 0; display: flex; }
-.deck-area.compare { gap: 8px; background: color-mix(in srgb, var(--slide-fg) 20%, transparent); }
-
-.pane {
-  flex: 1;
-  position: relative;
-  overflow: hidden;
-  background: var(--slide-bg);
-}
-.pane.compare-pane {
-  outline: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  outline-offset: -1px;
-}
-.pane-label {
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  background: color-mix(in srgb, var(--slide-bg) 70%, #000);
-  color: var(--chrome-fg);
-  padding: 3px 10px;
-  border-radius: 4px;
-  font-size: var(--chrome-font-sm);
-  z-index: 10;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  border: 1px solid var(--chrome-border);
-}
-
-/*
- * .slide is shared with the print template and the 20 themes target it
- * directly. Don't rename without updating themes.go.
- */
-.slide {
-  position: absolute;
-  inset: 0;
-  padding: var(--slide-padding);
-  overflow: auto;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-}
-
-/* Base typography is wrapped in :where() so theme CSS with bare element
- * selectors wins without needing a .slide prefix (#41). */
-:where(.slide) h1 { font-size: 2.5em; font-family: var(--font-heading); color: var(--accent); margin-bottom: 0.5em; }
-:where(.slide) h2 { font-size: 1.8em; font-family: var(--font-heading); color: var(--accent); margin-bottom: 0.4em; }
-:where(.slide) h3 { font-size: 1.3em; font-family: var(--font-heading); margin-bottom: 0.3em; }
-:where(.slide) p { margin-bottom: 0.8em; }
-:where(.slide) ul, :where(.slide) ol { margin-left: 1.5em; margin-bottom: 0.8em; }
-:where(.slide) li { margin-bottom: 0.3em; }
-/* Ordered list markers inherit accent color by default (#47) */
-:where(.slide) ol > li::marker { color: var(--list-marker-color, var(--accent)); }
-:where(.slide) pre {
-  background: color-mix(in srgb, var(--slide-fg) 8%, transparent);
-  border: 1px solid color-mix(in srgb, var(--slide-fg) 15%, transparent);
-  border-radius: 6px;
-  padding: 1em;
-  overflow-x: auto;
-  margin-bottom: 1em;
-  font-family: var(--font-mono);
-  font-size: 0.85em;
-  line-height: 1.4;
-}
-:where(.slide) code { font-family: var(--font-mono); font-size: 0.9em; }
-:where(.slide) :not(pre) > code {
-  background: color-mix(in srgb, var(--slide-fg) 12%, transparent);
-  padding: 0.15em 0.4em;
-  border-radius: 4px;
-}
-:where(.slide) table { border-collapse: collapse; margin-bottom: 1em; }
-:where(.slide) th, :where(.slide) td {
-  border: 1px solid color-mix(in srgb, var(--slide-fg) 22%, transparent);
-  padding: 0.5em 1em;
-  text-align: left;
-}
-:where(.slide) th[align], :where(.slide) td[align] { text-align: inherit; }
-:where(.slide) th { background: color-mix(in srgb, var(--slide-fg) 10%, transparent); font-weight: 600; }
-:where(.slide) blockquote {
-  border-left: 4px solid var(--accent);
-  padding-left: 1em;
-  margin-bottom: 0.8em;
-  font-style: italic;
-}
-:where(.slide) img { max-width: 100%; max-height: calc(100vh - 16vmin); object-fit: contain; }
-
-/* Slide-level vertical alignment (#49, #54) */
-.slide[data-valign="top"] { justify-content: flex-start; }
-.slide[data-valign="center"], .slide[data-valign="middle"] { justify-content: center; }
-.slide[data-valign="bottom"] { justify-content: flex-end; }
-
-/* Pause / progressive reveal: hide everything inside .slide that has the
- * .waxon-hidden class. JS adds/removes this on direct children at every
- * pause boundary so '<!-- pause -->' authors get progressive reveal. */
-:where(.slide) .waxon-hidden { visibility: hidden; }
-
-/* The parser replaces <!-- pause --> directives with this sentinel so the
- * renderer knows *where* the pauses were. It's a marker only — never visible.
- * goldmark treats the sentinel div as a block element, which splits any
- * enclosing <ul>/<ol> into segments at the pause boundary; re-tighten the
- * vertical spacing so progressively revealed lists look continuous. */
-:where(.slide) .waxon-pause { display: none; }
-:where(.slide) .waxon-pause + ul, :where(.slide) .waxon-pause + ol { margin-top: -0.3em; }
-
-/* ---------- Color palette utility classes ----------
+// componentCSS holds the builtin :::-fence component layout rules plus the
+// inline color-palette utility classes. It is shared verbatim by both the
+// interactive page template and the print (PDF) template via the
+// componentCSS template func, so PDF exports get the same flow / compare /
+// grid / stat / card / columns / timeline / badge / footnote / image / hr
+// layout as the live UI. Themes can still override appearance because the
+// deck theme CSS is injected after this block.
+const componentCSS = `/* ---------- Color palette utility classes ----------
  * Emitted by the parser's .color{text} and .color text transforms. Themes
  * override the --color-* custom properties to match their own palettes;
  * the fallbacks below only kick in when a theme forgets to set them. */
@@ -1475,7 +1284,212 @@ html, body {
   font-family: var(--font-mono);
 }
 :where(.slide) .waxon-timeline-horizontal .waxon-timeline-marker.waxon-timeline-icon { top: -0.7em; }
-:where(.slide) .waxon-timeline-vertical   .waxon-timeline-marker.waxon-timeline-icon { left: -0.5em; top: -0.1em; }
+:where(.slide) .waxon-timeline-vertical   .waxon-timeline-marker.waxon-timeline-icon { left: -0.5em; top: -0.1em; }`
+
+const pageTemplate = `<!DOCTYPE html>
+<html lang="en" data-theme="{{.Theme}}"{{if .TerminalVariant}} data-terminal-variant="{{.TerminalVariant}}"{{end}}>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{.Title}}</title>
+<style>
+/*
+ * Layered architecture:
+ *  - The "slide" class is shared with the print template and the 20 themes,
+ *    so theme rules like ".slide h1 { color: ... }" apply identically in
+ *    the live UI and PDF export.
+ *  - Chrome (banner, panels, FAB, help overlay) lives in its own --chrome-*
+ *    variable space and uses fixed-px sizing so it never scales with the
+ *    slide font-size.
+ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --slide-bg: #1a1a2e;
+  --slide-fg: #e0e0e0;
+  --accent: #7c3aed;
+  --font-body: system-ui, -apple-system, sans-serif;
+  --font-heading: system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
+  --slide-padding: 5vmin;
+
+  /* Chrome variables — fixed-px, theme-aware */
+  --chrome-fg: var(--slide-fg);
+  --chrome-bg: color-mix(in srgb, var(--slide-bg) 88%, #000 12%);
+  --chrome-border: color-mix(in srgb, var(--slide-fg) 18%, transparent);
+  --chrome-hover: color-mix(in srgb, var(--accent) 25%, transparent);
+  --chrome-active: color-mix(in srgb, var(--accent) 40%, transparent);
+  --chrome-font: 13px;
+  --chrome-font-sm: 12px;
+  --chrome-font-lg: 15px;
+  --backdrop: color-mix(in srgb, var(--slide-bg) 70%, #000 60%);
+}
+
+html, body {
+  height: 100%;
+  overflow: hidden;
+  background: var(--slide-bg);
+  color: var(--slide-fg);
+  font-family: var(--font-body);
+  font-size: calc(clamp(16px, 2.5vmin, 28px) * var(--waxon-zoom, 1));
+  line-height: 1.5;
+}
+
+.app {
+  width: 100vw;
+  height: 100vh;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  outline: none;
+  /* Clip the off-screen panels so they don't extend document scrollWidth;
+   * without this, focus() on a panel descendant scrolls the body 420px and
+   * the hidden panels become visible. */
+  overflow: hidden;
+}
+
+/* ---------- Banner ---------- */
+.banner {
+  display: none;
+  align-items: center;
+  gap: 0.6em;
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--accent) 14%, var(--chrome-bg));
+  color: var(--chrome-fg);
+  font-size: var(--chrome-font);
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  z-index: 100;
+}
+.banner.active { display: flex; }
+.banner .label { font-weight: 600; opacity: 0.85; }
+.banner .pill {
+  background: color-mix(in srgb, var(--accent) 30%, transparent);
+  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: var(--chrome-font-sm);
+  font-family: var(--font-mono);
+}
+.banner .spacer { flex: 1; }
+.banner button {
+  background: transparent;
+  border: 1px solid var(--chrome-border);
+  color: inherit;
+  padding: 3px 10px;
+  border-radius: 4px;
+  font: inherit;
+  font-size: var(--chrome-font-sm);
+  cursor: pointer;
+}
+.banner button:hover { background: color-mix(in srgb, var(--chrome-fg) 10%, transparent); }
+.banner button + button { margin-left: 4px; }
+
+/* ---------- Deck area ---------- */
+.deck-area { flex: 1; position: relative; min-height: 0; display: flex; }
+.deck-area.compare { gap: 8px; background: color-mix(in srgb, var(--slide-fg) 20%, transparent); }
+
+.pane {
+  flex: 1;
+  position: relative;
+  overflow: hidden;
+  background: var(--slide-bg);
+}
+.pane.compare-pane {
+  outline: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  outline-offset: -1px;
+}
+.pane-label {
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: color-mix(in srgb, var(--slide-bg) 70%, #000);
+  color: var(--chrome-fg);
+  padding: 3px 10px;
+  border-radius: 4px;
+  font-size: var(--chrome-font-sm);
+  z-index: 10;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  border: 1px solid var(--chrome-border);
+}
+
+/*
+ * .slide is shared with the print template and the 20 themes target it
+ * directly. Don't rename without updating themes.go.
+ */
+.slide {
+  position: absolute;
+  inset: 0;
+  padding: var(--slide-padding);
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+/* Base typography is wrapped in :where() so theme CSS with bare element
+ * selectors wins without needing a .slide prefix (#41). */
+:where(.slide) h1 { font-size: 2.5em; font-family: var(--font-heading); color: var(--accent); margin-bottom: 0.5em; }
+:where(.slide) h2 { font-size: 1.8em; font-family: var(--font-heading); color: var(--accent); margin-bottom: 0.4em; }
+:where(.slide) h3 { font-size: 1.3em; font-family: var(--font-heading); margin-bottom: 0.3em; }
+:where(.slide) p { margin-bottom: 0.8em; }
+:where(.slide) ul, :where(.slide) ol { margin-left: 1.5em; margin-bottom: 0.8em; }
+:where(.slide) li { margin-bottom: 0.3em; }
+/* Ordered list markers inherit accent color by default (#47) */
+:where(.slide) ol > li::marker { color: var(--list-marker-color, var(--accent)); }
+:where(.slide) pre {
+  background: color-mix(in srgb, var(--slide-fg) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--slide-fg) 15%, transparent);
+  border-radius: 6px;
+  padding: 1em;
+  overflow-x: auto;
+  margin-bottom: 1em;
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  line-height: 1.4;
+}
+:where(.slide) code { font-family: var(--font-mono); font-size: 0.9em; }
+:where(.slide) :not(pre) > code {
+  background: color-mix(in srgb, var(--slide-fg) 12%, transparent);
+  padding: 0.15em 0.4em;
+  border-radius: 4px;
+}
+:where(.slide) table { border-collapse: collapse; margin-bottom: 1em; }
+:where(.slide) th, :where(.slide) td {
+  border: 1px solid color-mix(in srgb, var(--slide-fg) 22%, transparent);
+  padding: 0.5em 1em;
+  text-align: left;
+}
+:where(.slide) th[align], :where(.slide) td[align] { text-align: inherit; }
+:where(.slide) th { background: color-mix(in srgb, var(--slide-fg) 10%, transparent); font-weight: 600; }
+:where(.slide) blockquote {
+  border-left: 4px solid var(--accent);
+  padding-left: 1em;
+  margin-bottom: 0.8em;
+  font-style: italic;
+}
+:where(.slide) img { max-width: 100%; max-height: calc(100vh - 16vmin); object-fit: contain; }
+
+/* Slide-level vertical alignment (#49, #54) */
+.slide[data-valign="top"] { justify-content: flex-start; }
+.slide[data-valign="center"], .slide[data-valign="middle"] { justify-content: center; }
+.slide[data-valign="bottom"] { justify-content: flex-end; }
+
+/* Pause / progressive reveal: hide everything inside .slide that has the
+ * .waxon-hidden class. JS adds/removes this on direct children at every
+ * pause boundary so '<!-- pause -->' authors get progressive reveal. */
+:where(.slide) .waxon-hidden { visibility: hidden; }
+
+/* The parser replaces <!-- pause --> directives with this sentinel so the
+ * renderer knows *where* the pauses were. It's a marker only — never visible.
+ * goldmark treats the sentinel div as a block element, which splits any
+ * enclosing <ul>/<ol> into segments at the pause boundary; re-tighten the
+ * vertical spacing so progressively revealed lists look continuous. */
+:where(.slide) .waxon-pause { display: none; }
+:where(.slide) .waxon-pause + ul, :where(.slide) .waxon-pause + ol { margin-top: -0.3em; }
+
+{{componentCSS}}
 
 /* ---------- Slide transitions ----------
  * Applied via [data-transition="fade"] on the top-level wrapper. CSS
@@ -2391,9 +2405,8 @@ html, body {
 
   function updateBanner() {
     var pills = [];
-    if (state.themeOverridden) {
-      pills.push('theme: <span class="pill">' + escapeHTML(state.activeTheme) + '</span>');
-    }
+    // Theme preview is shown as a transient toast on switch (see applyTheme),
+    // not a persistent pill — it confused users and isn't a sticky setting.
     if (activeVariant[current]) {
       pills.push('variant: <span class="pill">' + escapeHTML(activeVariant[current]) + '</span>');
     }
@@ -2781,9 +2794,12 @@ html, body {
         state.activeTheme = name;
         state.themeOverridden = (name !== state.deckTheme);
         document.documentElement.setAttribute('data-theme', name);
-        try { localStorage.setItem('waxon-theme-override', state.themeOverridden ? name : ''); }
-        catch (e) {}
-        updateBanner();
+        // Theme preview is a transient in-session try-on, NOT a sticky setting:
+        // flash a brief toast instead of pinning a persistent banner, and do
+        // NOT persist it — a reload always returns to the deck's own theme, so
+        // a forgotten preview can't silently override how the deck looks.
+        if (state.themeOverridden) flashBanner('Theme preview: ' + name + ' — reload to restore deck theme');
+        else flashBanner('Deck theme');
         if (openPanel === 'themes') renderThemesPanel();
         return;
       }
@@ -2837,11 +2853,10 @@ html, body {
     i = (i + dir + themes.length) % themes.length;
     applyTheme(themes[i].name);
   }
-  // Restore persisted theme override on load.
-  try {
-    var storedTheme = localStorage.getItem('waxon-theme-override');
-    if (storedTheme) applyTheme(storedTheme);
-  } catch (e) {}
+  // Theme preview is intentionally NOT restored on load — the deck always opens
+  // in its own theme. (Clear any override saved by older builds so it can't keep
+  // forcing a stale preview.)
+  try { localStorage.removeItem('waxon-theme-override'); } catch (e) {}
 
   // ---------- Zoom ----------
   // Scales the page font-size via --waxon-zoom. Slide content uses em-based
@@ -3501,6 +3516,8 @@ html, body {
   pointer-events: none;
 }
 {{end}}
+
+{{componentCSS}}
 </style>
 {{range .Fonts}}<link rel="stylesheet" href="{{.}}">
 {{end}}<style id="theme-css">
