@@ -514,6 +514,16 @@ func (s *Server) handleDeck(w http.ResponseWriter, r *http.Request) {
 	s.mu.RUnlock()
 
 	if !ok {
+		// Not a deck — fall back to serving it as a static asset relative to the
+		// served root, so relative image/asset paths inside a deck (e.g.
+		// /d/episodes/assets/pic.png from ![](assets/pic.png)) resolve. resolveAbs
+		// guards against `../` traversal outside rootDir.
+		if abs, err := s.resolveAbs(rel); err == nil {
+			if info, statErr := os.Stat(abs); statErr == nil && !info.IsDir() {
+				http.ServeFile(w, r, abs)
+				return
+			}
+		}
 		http.NotFound(w, r)
 		return
 	}
