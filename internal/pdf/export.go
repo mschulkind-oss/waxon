@@ -52,7 +52,19 @@ func Export(ctx context.Context, deck *format.Deck, opts Options) error {
 	defer listener.Close()
 
 	mux := http.NewServeMux()
+	// Serve the deck's own directory so relative image/asset paths in the slides
+	// (e.g. ![alt](assets/pic.png)) resolve during export, just like they do under
+	// `waxon serve`. The deck HTML is served at "/"; any other path falls through
+	// to the static file server rooted at the deck dir.
+	var fileServer http.Handler
+	if opts.DeckDir != "" {
+		fileServer = http.FileServer(http.Dir(opts.DeckDir))
+	}
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/" && fileServer != nil {
+			fileServer.ServeHTTP(w, r)
+			return
+		}
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		fmt.Fprint(w, html)
 	})
