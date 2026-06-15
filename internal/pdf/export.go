@@ -172,6 +172,13 @@ func renderPDFOnce(ctx context.Context, addr string, paperWidth, paperHeight flo
 	err := chromedp.Run(chromCtx,
 		chromedp.Navigate(addr),
 		chromedp.WaitVisible(".deck", chromedp.ByQuery),
+		// Wait for every <img> to finish decoding before printing. Without this,
+		// PrintToPDF can fire before raster assets (e.g. screenshots embedded via
+		// :::image) have loaded, producing a PDF with blank image boxes. We poll
+		// img.complete && naturalWidth>0 for all images; a broken/404 image also
+		// reports complete:true, so a missing asset can't hang the export, and the
+		// surrounding 60s context timeout is the hard backstop.
+		waitImagesLoaded(),
 		chromedp.ActionFunc(func(ctx context.Context) error {
 			var err error
 			pdfBuf, _, err = page.PrintToPDF().
@@ -191,6 +198,24 @@ func renderPDFOnce(ctx context.Context, addr string, paperWidth, paperHeight flo
 		return nil, err
 	}
 	return pdfBuf, nil
+}
+
+// waitImagesLoaded blocks until every <img> on the page has finished loading
+// (or failed). Chromium reports img.complete == true for both decoded images
+// and 404s, so this can't deadlock on a missing asset; it simply ensures
+// PrintToPDF doesn't capture a half-loaded page. It is best-effort: if the
+// poll times out (e.g. an asset that never settles), we proceed to print
+// rather than fail the export — matching the prior no-wait behavior.
+func waitImagesLoaded() chromedp.Action {
+	const js = `Array.from(document.images).every(function(img){ return img.complete; })`
+	return chromedp.ActionFunc(func(ctx context.Context) error {
+		err := chromedp.Poll(js, nil, chromedp.WithPollingTimeout(10*time.Second)).Do(ctx)
+		if err != nil && ctx.Err() == nil {
+			// Poll-level timeout (not a cancelled parent context): print anyway.
+			return nil
+		}
+		return err
+	})
 }
 
 // isChromeStartupFailure returns true for error strings that match
