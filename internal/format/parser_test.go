@@ -258,6 +258,28 @@ title: "Pauses"
 	}
 }
 
+// A literal "<!-- pause -->" written inside a note/ai/comment block (e.g. prose
+// describing the syntax) must NOT be counted as a real pause directive — that
+// added a phantom reveal step to the slide.
+func TestParsePauseInsideCommentNotCounted(t *testing.T) {
+	input := `---
+title: "Comment pause"
+---
+
+# Cover
+
+<!-- ai: this deck has no <!-- pause --> reveals; show whole -->
+<!-- note: don't use <!-- pause --> here either -->
+`
+	deck, err := Parse(input)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got := deck.Slides[0].Pauses; got != 0 {
+		t.Errorf("pauses = %d, want 0 (pause inside a comment must not count)", got)
+	}
+}
+
 func TestParseSlideOpts(t *testing.T) {
 	input := `---
 title: "Opts"

@@ -377,21 +377,26 @@ func extractDirectives(content string) (cleaned string, notes, aiNotes []string,
 		comments = append(comments, Comment{Author: m[1], Text: m[2]})
 	}
 
-	// Count pauses
-	pauses = len(pauseRe.FindAllString(content, -1))
-
-	// Extract slide opts
-	if m := slideOptsRe.FindStringSubmatch(content); m != nil {
-		opts = parseSlideOpts(m[1])
-	}
-
-	// Remove all directives from content. Pauses are replaced with a
-	// sentinel <div> so the renderer can split the slide body at the
-	// original marker positions for progressive reveal — without this,
-	// we would only know *how many* pauses there were, not *where*.
+	// Strip note/ai/comment blocks FIRST, then count pauses on what's left.
+	// Otherwise a literal "<!-- pause -->" written *inside* a note/ai comment
+	// (e.g. prose like 'no <!-- pause --> here') is miscounted as a real pause
+	// directive, adding a phantom reveal step to the slide.
 	cleaned = noteRe.ReplaceAllString(content, "")
 	cleaned = aiRe.ReplaceAllString(cleaned, "")
 	cleaned = commentRe.ReplaceAllString(cleaned, "")
+
+	// Count pauses (on the comment-free body)
+	pauses = len(pauseRe.FindAllString(cleaned, -1))
+
+	// Extract slide opts
+	if m := slideOptsRe.FindStringSubmatch(cleaned); m != nil {
+		opts = parseSlideOpts(m[1])
+	}
+
+	// Replace remaining directives. Pauses become a sentinel <div> so the
+	// renderer can split the slide body at the original marker positions for
+	// progressive reveal — without this, we'd know *how many* pauses there
+	// were, not *where*.
 	cleaned = pauseRe.ReplaceAllString(cleaned, "\n\n<div class=\"waxon-pause\"></div>\n\n")
 	cleaned = slideOptsRe.ReplaceAllString(cleaned, "")
 
