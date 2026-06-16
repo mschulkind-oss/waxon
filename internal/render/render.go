@@ -1313,24 +1313,26 @@ const componentCSS = `/* ---------- Color palette utility classes ----------
  * where they must beat the base ".slide" rule (0,1,0); plain ".slide.reserve-*"
  * (0,2,0) wins as intended. */
 
-/* (1) Live band — VERTICAL ONLY. The .reserve-live class is present only when
- * band > 0. Dialing the band adds bottom padding (N× the reserve height) and
- * top-aligns content, so content rides UP out of the bottom-right camera. It
- * deliberately does NOT touch horizontal padding: a width-capped, centered box
- * (see .narrow / the transcript cap) keeps its fixed window-coords width and
- * stays centered no matter how far you dial — only its vertical position moves.
+/* (1) Live band — content stays CENTERED in the shrinking camera-excluded
+ * region. The .reserve-live class is present only when band > 0. Growing the
+ * band adds bottom + right padding (N× the reserve height/width), which shrinks
+ * the content box to the top-left rectangle that excludes the bottom-right
+ * camera. Because justify-content / align-items stay CENTER, content stays
+ * centered *within that shrinking region* — so in window space it glides
+ * smoothly UP and LEFT as you dial (no snap to the top). At band 0 the region
+ * is the whole slide (content dead-center); at band 1 it's the top-left box.
  *
- * Top-align is required because the shrunk height can be less than tall content
- * (e.g. a big image); centering an overflow clips the TOP off-screen (the bug
- * that hid the title). Pin the top; give from the bottom (toward the camera).
- * Media height is also capped to the reduced area so images shrink to fit. */
+ * A width-capped box (transcript / .narrow, max-width in vw) keeps its fixed
+ * window-coords width; the right padding just relocates its center leftward, it
+ * doesn't squeeze the box. Media height is capped to the reduced area so a tall
+ * image shrinks to fit instead of overflowing (which would clip off-screen). */
 .slide.reserve-live {
+  padding-right: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-w, 22%));
   padding-bottom: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-h, 30%));
-  justify-content: flex-start;
 }
 .slide.reserve-live img,
 .slide.reserve-live .waxon-image img {
-  max-height: calc((1 - var(--reserve-live, 0) * 0.5) * (100vh - 16vmin));
+  max-height: calc((1 - var(--reserve-live, 0) * 0.55) * (100vh - 16vmin));
 }
 
 /* (1b) Width-capped ".narrow" slides: each content block is held to --narrow-w
