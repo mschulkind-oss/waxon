@@ -83,7 +83,7 @@ func TestRenderHTMLPresenterReserve(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	// The class is applied to the live slide element...
+	// The marker class is applied to the live slide element...
 	if !strings.Contains(html, `class="slide presenter-reserve"`) {
 		t.Error("missing presenter-reserve class on render-main")
 	}
@@ -91,13 +91,24 @@ func TestRenderHTMLPresenterReserve(t *testing.T) {
 	if !strings.Contains(html, "classList.add('presenter-reserve')") {
 		t.Error("render() JS does not re-apply presenter-reserve after className wipe")
 	}
+	// The debug-overlay toggle ('R') is wired only when a reserve is declared.
+	if !strings.Contains(html, "reserveDebug = !reserveDebug") {
+		t.Error("missing reserve-debug toggle")
+	}
+	if !strings.Contains(html, ".slide.presenter-reserve.reserve-debug::after") {
+		t.Error("missing reserve-debug overlay CSS")
+	}
 	// CSS var fallback is present so themes need not define it.
 	if !strings.Contains(html, "--presenter-reserve-w") {
 		t.Error("missing presenter-reserve CSS variable fallback")
 	}
-	// The padding rule that actually clears the corner.
-	if !strings.Contains(html, "padding-right: calc(var(--slide-padding) + var(--presenter-reserve-w") {
-		t.Error("missing reserve padding rule")
+	// The OPT-IN helper rule exists (reserve is a marker; .reserve-pad clears).
+	if !strings.Contains(html, ".slide.reserve-pad {") {
+		t.Error("missing opt-in .reserve-pad helper rule")
+	}
+	// The marker itself must NOT auto-pad content (it's hand-composed).
+	if strings.Contains(html, ".slide.presenter-reserve {\n  padding-right") {
+		t.Error("presenter-reserve should not auto-pad content (marker only)")
 	}
 }
 
@@ -112,6 +123,9 @@ func TestRenderHTMLPresenterReserveOff(t *testing.T) {
 	}
 	if strings.Contains(html, "classList.add('presenter-reserve')") {
 		t.Error("presenter-reserve JS re-add leaked when option off")
+	}
+	if strings.Contains(html, "reserveDebug = !reserveDebug") {
+		t.Error("reserve-debug toggle leaked when option off")
 	}
 }
 

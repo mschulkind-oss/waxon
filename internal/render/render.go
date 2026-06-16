@@ -1292,44 +1292,62 @@ const componentCSS = `/* ---------- Color palette utility classes ----------
 
 /* ---------- Presenter reserve zone ----------
  * When a deck sets 'presenter-reserve: bottom-right', every slide gets the
- * .presenter-reserve class. We clear a bottom-right rectangle for a
- * talking-head camera overlay by growing the slide's right + bottom padding
- * (an inverted-L band: full-width bottom strip + full-height right strip).
- * Content lays out in the remaining region — this is layout-agnostic, so it
- * works for prose, :::grid, :::compare, and constrained :::image alike.
- * CSS cannot make flex/grid children reflow around only a corner, so the
- * L-band is the honest, predictable choice. Dimensions are theme-tunable via
- * --presenter-reserve-w / --presenter-reserve-h. Per-slide escape hatch:
- * <!-- slide: no-reserve -->. Note: full-bleed background images (bg-image)
- * paint the whole element and are NOT cleared — use a foreground :::image or
- * no-reserve for those slides.
+ * .presenter-reserve class. This is a DECLARED ZONE, not an automatic layout:
+ * by itself it does NOTHING to content — you hand-compose each slide to leave
+ * the corner clear. Three tools support that:
  *
- * These rules intentionally do NOT use :where() — the base ".slide" rule sets
- * padding/justify-content with specificity (0,1,0), and :where() contributes
- * zero specificity, so a :where(.slide.presenter-reserve) rule would lose to
- * ".slide". Plain ".slide.presenter-reserve" (0,2,0) wins as intended. */
-.slide.presenter-reserve {
+ *   1. DEBUG OVERLAY — toggled by the JS (the 'R' key / deck.classList
+ *      'reserve-debug'). Draws the reserved rectangle as a dashed box with a
+ *      label so you can see exactly where to keep clear while designing.
+ *
+ *   2. OPT-IN AUTO-CLEAR — per-slide classes you add when the mechanical
+ *      clear is what you want on that slide:
+ *        .reserve-pad      — pad both right + bottom (full inverted-L band)
+ *        .reserve-pad-right — pad right only (good for top-aligned content)
+ *      Without one of these, content layout is untouched.
+ *
+ * Dimensions are theme-tunable via --presenter-reserve-w / --presenter-reserve-h.
+ * The zone anchors bottom-right; --presenter-reserve-inset adds a margin from
+ * the slide edge so the box matches a camera that isn't flush to the corner.
+ *
+ * Rules avoid :where() where they must beat the base ".slide" rule (0,1,0);
+ * plain ".slide.reserve-pad" (0,2,0) wins as intended. */
+
+/* (1) Debug overlay: a dashed rectangle + label, only when reserve-debug is on.
+ * The .reserve-debug class is toggled on the slide element itself (the 'R'
+ * key in serve), so this works in both the serve pane and a print export. */
+.slide.presenter-reserve.reserve-debug::after {
+  content: "reserve";
+  position: absolute;
+  right: var(--presenter-reserve-inset, 0px);
+  bottom: var(--presenter-reserve-inset, 0px);
+  width: var(--presenter-reserve-w, 22%);
+  height: var(--presenter-reserve-h, 30%);
+  box-sizing: border-box;
+  border: 2px dashed color-mix(in srgb, var(--accent, #7c3aed) 70%, transparent);
+  background: color-mix(in srgb, var(--accent, #7c3aed) 9%, transparent);
+  border-radius: 6px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: 0.3em 0.5em;
+  font-family: var(--font-mono);
+  font-size: 0.5em;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--accent, #7c3aed) 85%, var(--slide-fg));
+  pointer-events: none;
+  z-index: 50;
+}
+
+/* (2) Opt-in auto-clear helpers — only applied when the slide carries them. */
+.slide.reserve-pad {
   padding-right: calc(var(--slide-padding) + var(--presenter-reserve-w, 22%));
   padding-bottom: calc(var(--slide-padding) + var(--presenter-reserve-h, 30%));
 }
-/* With a reserve active, default to top alignment so content fills the
- * cleared upper-left region instead of centering in the shrunken box. An
- * explicit data-valign still wins: this rule only matches when data-valign is
- * absent (:not), so the base .slide[data-valign=...] rules are never in conflict. */
-.slide.presenter-reserve:not([data-valign]) {
-  justify-content: flex-start;
-}
-/* Per-slide opt-out: <!-- slide: no-reserve --> restores normal padding. */
-.slide.presenter-reserve.no-reserve {
-  padding-right: var(--slide-padding);
-  padding-bottom: var(--slide-padding);
-}
-/* Keep the footer clear of the camera box. The footer is a sibling of .slide
- * in the interactive pane and a child in print, hence both selectors. */
-.slide.presenter-reserve ~ .footer,
-.slide.presenter-reserve .footer {
-  right: calc(var(--slide-padding) + var(--presenter-reserve-w, 22%));
-  bottom: calc(var(--presenter-reserve-h, 30%) - 2vmin);
+.slide.reserve-pad:not([data-valign]) { justify-content: flex-start; }
+.slide.reserve-pad-right {
+  padding-right: calc(var(--slide-padding) + var(--presenter-reserve-w, 22%));
 }`
 
 const pageTemplate = `<!DOCTYPE html>
@@ -1363,6 +1381,7 @@ const pageTemplate = `<!DOCTYPE html>
    * when the deck sets presenter-reserve: bottom-right. */
   --presenter-reserve-w: 22%;
   --presenter-reserve-h: 30%;
+  --presenter-reserve-inset: 0px;
 
   /* Chrome variables — fixed-px, theme-aware */
   --chrome-fg: var(--slide-fg);
@@ -2251,6 +2270,10 @@ html, body {
   // activeVariant[i] = "" for main, or variant name string
   var activeVariant = {};
   var compareMode = false;
+  // Presenter-reserve debug overlay: draws the reserved camera rectangle so
+  // slides can be hand-composed around it. Toggled with 'R'. Persisted across
+  // navigation since render() rebuilds the slide element's class list.
+  var reserveDebug = false;
   // pauseStep[i] = how many pauses are revealed on slide i. 0 = none.
   // Range: 0..slide.pauses. The slide HTML is rendered into chunks split
   // at the original pause markers, and chunks beyond pauseStep get the
@@ -2359,7 +2382,8 @@ html, body {
     renderMain.className = '';
     void renderMain.offsetWidth;
     renderMain.classList.add('slide');
-    {{if .PresenterReserve}}renderMain.classList.add('presenter-reserve');{{end}}
+    {{if .PresenterReserve}}renderMain.classList.add('presenter-reserve');
+    if (reserveDebug) renderMain.classList.add('reserve-debug');{{end}}
     if (view.slide && view.slide.class) {
       view.slide.class.split(/\s+/).forEach(function(c) {
         if (c) renderMain.classList.add(c);
@@ -3117,6 +3141,7 @@ html, body {
       case 'N': e.preventDefault(); togglePanel('notes'); return;
       case 'H': e.preventDefault(); toggleFab(); return;
       case 'x': e.preventDefault(); compareMode = !compareMode; render(); return;
+      {{if .PresenterReserve}}case 'R': e.preventDefault(); reserveDebug = !reserveDebug; render(); return;{{end}}
       case '[': e.preventDefault(); cycleVariant(-1); return;
       case ']': e.preventDefault(); cycleVariant(1); return;
       case 'n': e.preventDefault(); next(); return;
@@ -3459,6 +3484,7 @@ const printTemplate = `<!DOCTYPE html>
   --slide-padding: 5vmin;
   --presenter-reserve-w: 22%;
   --presenter-reserve-h: 30%;
+  --presenter-reserve-inset: 0px;
 }
 
 html, body {
