@@ -1292,32 +1292,43 @@ const componentCSS = `/* ---------- Color palette utility classes ----------
 
 /* ---------- Presenter reserve zone ----------
  * When a deck sets 'presenter-reserve: bottom-right', every slide gets the
- * .presenter-reserve class. This is a DECLARED ZONE, not an automatic layout:
- * by itself it does NOTHING to content — you hand-compose each slide to leave
- * the corner clear. Three tools support that:
+ * .presenter-reserve class. The reserve is a DECLARED ZONE plus a LIVE,
+ * adjustable inverted-L band you dial against a visible frame while recording:
  *
- *   1. DEBUG OVERLAY — toggled by the JS (the 'R' key / deck.classList
- *      'reserve-debug'). Draws the reserved rectangle as a dashed box with a
- *      label so you can see exactly where to keep clear while designing.
+ *   1. LIVE L-BAND — the '[' / ']' keys grow/shrink --reserve-live (0..1),
+ *      a single knob that scales BOTH the bottom + right padding together so
+ *      content squeezes toward the top-left, out of the bottom-right camera.
+ *      0 = content fills the slide (no L); 1 = the full reserve box is clear.
+ *      The slide carries .reserve-live so the padding tracks the var live.
  *
- *   2. OPT-IN AUTO-CLEAR — per-slide classes you add when the mechanical
- *      clear is what you want on that slide:
- *        .reserve-pad      — pad both right + bottom (full inverted-L band)
- *        .reserve-pad-right — pad right only (good for top-aligned content)
- *      Without one of these, content layout is untouched.
+ *   2. DEBUG OVERLAY — the 'R' key toggles .reserve-debug, which draws the
+ *      slide content frame (padding edge) AND the camera box, so the aspect
+ *      ratio, padding, and head zone are all visible while you dial the band.
  *
- * Dimensions are theme-tunable via --presenter-reserve-w / --presenter-reserve-h.
- * The zone anchors bottom-right; --presenter-reserve-inset adds a margin from
- * the slide edge so the box matches a camera that isn't flush to the corner.
+ *   3. STATIC OPT-IN HELPERS — per-slide classes for a fixed clear without the
+ *      live knob: .reserve-pad (both arms), .reserve-pad-right (right only).
  *
- * Rules avoid :where() where they must beat the base ".slide" rule (0,1,0);
- * plain ".slide.reserve-pad" (0,2,0) wins as intended. */
+ * Dimensions are theme-tunable via --presenter-reserve-w / --presenter-reserve-h;
+ * --presenter-reserve-inset insets the box from the corner. Rules avoid :where()
+ * where they must beat the base ".slide" rule (0,1,0); plain ".slide.reserve-*"
+ * (0,2,0) wins as intended. */
 
-/* (1) Debug overlay: a dashed rectangle + label, only when reserve-debug is on.
- * The .reserve-debug class is toggled on the slide element itself (the 'R'
- * key in serve), so this works in both the serve pane and a print export. */
+/* (1) Live L-band: padding scales with --reserve-live (set by the [ / ] keys).
+ * At 0 the calc adds nothing; at 1 it adds the full reserve dimensions. */
+.slide.reserve-live {
+  padding-right: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-w, 22%));
+  padding-bottom: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-h, 30%));
+}
+.slide.reserve-live:not([data-valign]) { justify-content: flex-start; }
+
+/* (2) Debug overlay: the slide content frame (dashed, at the padding edge) plus
+ * the camera box. Toggled by .reserve-debug on the slide element (serve 'R'). */
+.slide.presenter-reserve.reserve-debug {
+  outline: 1px dashed color-mix(in srgb, var(--slide-fg) 35%, transparent);
+  outline-offset: calc(-1 * var(--slide-padding));
+}
 .slide.presenter-reserve.reserve-debug::after {
-  content: "reserve";
+  content: "head";
   position: absolute;
   right: var(--presenter-reserve-inset, 0px);
   bottom: var(--presenter-reserve-inset, 0px);
@@ -1340,7 +1351,7 @@ const componentCSS = `/* ---------- Color palette utility classes ----------
   z-index: 50;
 }
 
-/* (2) Opt-in auto-clear helpers — only applied when the slide carries them. */
+/* (3) Static opt-in auto-clear helpers — only applied when the slide carries them. */
 .slide.reserve-pad {
   padding-right: calc(var(--slide-padding) + var(--presenter-reserve-w, 22%));
   padding-bottom: calc(var(--slide-padding) + var(--presenter-reserve-h, 30%));
@@ -2241,6 +2252,11 @@ html, body {
       <tr><td><kbd>f</kbd></td><td>Toggle fullscreen</td></tr>
       <tr><td><kbd>Shift</kbd>+<kbd>H</kbd></td><td>Show / hide the toolbar (auto-hides in fullscreen)</td></tr>
     </table>
+    {{if .PresenterReserve}}<h3>Presenter reserve</h3>
+    <table>
+      <tr><td><kbd>Shift</kbd>+<kbd>R</kbd></td><td>Toggle the slide frame + camera-box overlay</td></tr>
+      <tr><td><kbd>.</kbd> / <kbd>,</kbd></td><td>Grow / shrink the bottom-right reserve band (clears space for your head)</td></tr>
+    </table>{{end}}
     <div class="hint">
       Click a comment in the Comments panel to jump to that slide. The
       target dropdown locks while you're composing so navigation can't
@@ -2270,10 +2286,13 @@ html, body {
   // activeVariant[i] = "" for main, or variant name string
   var activeVariant = {};
   var compareMode = false;
-  // Presenter-reserve debug overlay: draws the reserved camera rectangle so
-  // slides can be hand-composed around it. Toggled with 'R'. Persisted across
+  // Presenter-reserve debug overlay: draws the slide frame + camera box so
+  // slides can be composed around it. Toggled with 'R'. Persisted across
   // navigation since render() rebuilds the slide element's class list.
   var reserveDebug = false;
+  // Live reserve L-band strength, 0..1. Dialed with '[' / ']'. Scales the
+  // bottom+right padding so content squeezes out of the bottom-right camera.
+  var reserveLive = 0;
   // pauseStep[i] = how many pauses are revealed on slide i. 0 = none.
   // Range: 0..slide.pauses. The slide HTML is rendered into chunks split
   // at the original pause markers, and chunks beyond pauseStep get the
@@ -2383,7 +2402,13 @@ html, body {
     void renderMain.offsetWidth;
     renderMain.classList.add('slide');
     {{if .PresenterReserve}}renderMain.classList.add('presenter-reserve');
-    if (reserveDebug) renderMain.classList.add('reserve-debug');{{end}}
+    if (reserveDebug) renderMain.classList.add('reserve-debug');
+    if (reserveLive > 0) {
+      renderMain.classList.add('reserve-live');
+      renderMain.style.setProperty('--reserve-live', String(reserveLive));
+    } else {
+      renderMain.style.removeProperty('--reserve-live');
+    }{{end}}
     if (view.slide && view.slide.class) {
       view.slide.class.split(/\s+/).forEach(function(c) {
         if (c) renderMain.classList.add(c);
@@ -3141,7 +3166,9 @@ html, body {
       case 'N': e.preventDefault(); togglePanel('notes'); return;
       case 'H': e.preventDefault(); toggleFab(); return;
       case 'x': e.preventDefault(); compareMode = !compareMode; render(); return;
-      {{if .PresenterReserve}}case 'R': e.preventDefault(); reserveDebug = !reserveDebug; render(); return;{{end}}
+      {{if .PresenterReserve}}case 'R': e.preventDefault(); reserveDebug = !reserveDebug; render(); flashBanner('Reserve frame ' + (reserveDebug ? 'on' : 'off')); return;
+      case '}': case '.': e.preventDefault(); reserveLive = Math.min(1, Math.round((reserveLive + 0.1) * 10) / 10); render(); flashBanner('Reserve band ' + Math.round(reserveLive * 100) + '%'); return;
+      case '{': case ',': e.preventDefault(); reserveLive = Math.max(0, Math.round((reserveLive - 0.1) * 10) / 10); render(); flashBanner(reserveLive > 0 ? 'Reserve band ' + Math.round(reserveLive * 100) + '%' : 'Reserve band off'); return;{{end}}
       case '[': e.preventDefault(); cycleVariant(-1); return;
       case ']': e.preventDefault(); cycleVariant(1); return;
       case 'n': e.preventDefault(); next(); return;

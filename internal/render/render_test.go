@@ -110,6 +110,16 @@ func TestRenderHTMLPresenterReserve(t *testing.T) {
 	if strings.Contains(html, ".slide.presenter-reserve {\n  padding-right") {
 		t.Error("presenter-reserve should not auto-pad content (marker only)")
 	}
+	// The LIVE band: keys adjust reserveLive, CSS scales padding by --reserve-live.
+	if !strings.Contains(html, "var reserveLive = 0") {
+		t.Error("missing live reserve-band state var")
+	}
+	if !strings.Contains(html, "var(--reserve-live, 0) * var(--presenter-reserve-w") {
+		t.Error("missing live reserve-band CSS (padding scaled by --reserve-live)")
+	}
+	if !strings.Contains(html, "setProperty('--reserve-live'") {
+		t.Error("render() JS does not apply the live --reserve-live var")
+	}
 }
 
 func TestRenderHTMLPresenterReserveOff(t *testing.T) {
@@ -126,6 +136,9 @@ func TestRenderHTMLPresenterReserveOff(t *testing.T) {
 	}
 	if strings.Contains(html, "reserveDebug = !reserveDebug") {
 		t.Error("reserve-debug toggle leaked when option off")
+	}
+	if strings.Contains(html, "setProperty('--reserve-live'") {
+		t.Error("live reserve-band wiring leaked when option off")
 	}
 }
 
