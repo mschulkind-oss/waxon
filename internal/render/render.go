@@ -1313,19 +1313,32 @@ const componentCSS = `/* ---------- Color palette utility classes ----------
  * where they must beat the base ".slide" rule (0,1,0); plain ".slide.reserve-*"
  * (0,2,0) wins as intended. */
 
-/* (1) Live L-band: padding scales with --reserve-live (set by the [ / ] keys).
- * At 0 the calc adds nothing; at 1 it adds the full reserve dimensions. */
+/* (1) Live L-band: padding scales with --reserve-live (set by the . / , keys).
+ * At 0 the calc adds nothing; at 1 it adds the full reserve dimensions, so the
+ * content box exactly clears the head box. Content stays vertically centered
+ * (no flex-start flip), so it rises SMOOTHLY as the bottom padding grows —
+ * avoiding a discrete center→top jump on the first increment. */
 .slide.reserve-live {
   padding-right: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-w, 22%));
   padding-bottom: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-h, 30%));
 }
-.slide.reserve-live:not([data-valign]) { justify-content: flex-start; }
 
-/* (2) Debug overlay: the slide content frame (dashed, at the padding edge) plus
- * the camera box. Toggled by .reserve-debug on the slide element (serve 'R'). */
-.slide.presenter-reserve.reserve-debug {
-  outline: 1px dashed color-mix(in srgb, var(--slide-fg) 35%, transparent);
-  outline-offset: calc(-1 * var(--slide-padding));
+/* (2) Debug overlay (toggled by .reserve-debug on the slide, serve 'R'):
+ *   ::before = the CONTENT box edge — where content actually stops, tracking
+ *              the live padding, so you can see the L-band as you dial it.
+ *   ::after  = the HEAD box — the fixed camera no-go zone (the target to clear).
+ * Dial . / , until the content edge (::before) clears the head box (::after). */
+.slide.presenter-reserve.reserve-debug::before {
+  content: "";
+  position: absolute;
+  top: var(--slide-padding);
+  left: var(--slide-padding);
+  right: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-w, 22%));
+  bottom: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-h, 30%));
+  border: 1px dashed color-mix(in srgb, var(--slide-fg) 40%, transparent);
+  border-radius: 4px;
+  pointer-events: none;
+  z-index: 49;
 }
 .slide.presenter-reserve.reserve-debug::after {
   content: "head";
@@ -1336,7 +1349,7 @@ const componentCSS = `/* ---------- Color palette utility classes ----------
   height: var(--presenter-reserve-h, 30%);
   box-sizing: border-box;
   border: 2px dashed color-mix(in srgb, var(--accent, #7c3aed) 70%, transparent);
-  background: color-mix(in srgb, var(--accent, #7c3aed) 9%, transparent);
+  background: color-mix(in srgb, var(--accent, #7c3aed) 14%, transparent);
   border-radius: 6px;
   display: flex;
   align-items: flex-start;
@@ -2086,6 +2099,27 @@ html, body {
 }
 .ws-status.show { display: block; }
 
+/* Reserve readout — a non-reflowing pill, pinned bottom-left, that reports the
+ * live band % / frame state. position:fixed so toggling it NEVER shifts the
+ * slide (unlike the in-flow .banner). Fades out shortly after the last change. */
+.reserve-status {
+  position: fixed;
+  left: 12px;
+  top: 12px;
+  background: color-mix(in srgb, #000 72%, transparent);
+  color: var(--accent);
+  font-size: var(--chrome-font-sm);
+  font-family: var(--font-mono);
+  padding: 5px 11px;
+  border-radius: 5px;
+  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
+  z-index: 200;
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+.reserve-status.show { opacity: 1; }
+
 {{if .TerminalEffects}}
 /* Terminal scanline effect — scoped to the deck area so it never overlays
    chrome (banner, FAB, panels, help overlay). */
@@ -2137,7 +2171,8 @@ html, body {
   </div>
   <div class="progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Slide progress"></div>
   <div class="ws-status" id="ws-status">disconnected — reconnecting…</div>
-
+{{if .PresenterReserve}}  <div class="reserve-status" id="reserve-status" aria-hidden="true"></div>
+{{end}}
   <div class="fab" role="toolbar" aria-label="Slide controls">
     <div class="group">
       <button type="button" data-action="variants" aria-label="Toggle variants panel (v)" title="Variants — v"><kbd>v</kbd> variants</button>
@@ -2327,6 +2362,20 @@ html, body {
   var compareLabel = $('compare-label');
   var mainLabel = $('main-label');
   var wsStatus = $('ws-status');
+  var reserveStatus = $('reserve-status');
+  var reserveStatusTimer = null;
+  // Non-reflowing readout for the presenter-reserve controls. Unlike
+  // flashBanner (which shows an in-flow bar and shoves the slide down), this
+  // updates a position:fixed pill, so dialing the band never reflows content.
+  function showReserve(msg) {
+    if (!reserveStatus) return;
+    reserveStatus.textContent = msg;
+    reserveStatus.classList.add('show');
+    if (reserveStatusTimer) clearTimeout(reserveStatusTimer);
+    reserveStatusTimer = setTimeout(function() {
+      reserveStatus.classList.remove('show');
+    }, 1400);
+  }
   var commentForm = $('comment-form');
   var commentSubmit = $('comment-submit');
   var commentStatus = $('comment-status');
@@ -3166,9 +3215,9 @@ html, body {
       case 'N': e.preventDefault(); togglePanel('notes'); return;
       case 'H': e.preventDefault(); toggleFab(); return;
       case 'x': e.preventDefault(); compareMode = !compareMode; render(); return;
-      {{if .PresenterReserve}}case 'R': e.preventDefault(); reserveDebug = !reserveDebug; render(); flashBanner('Reserve frame ' + (reserveDebug ? 'on' : 'off')); return;
-      case '}': case '.': e.preventDefault(); reserveLive = Math.min(1, Math.round((reserveLive + 0.1) * 10) / 10); render(); flashBanner('Reserve band ' + Math.round(reserveLive * 100) + '%'); return;
-      case '{': case ',': e.preventDefault(); reserveLive = Math.max(0, Math.round((reserveLive - 0.1) * 10) / 10); render(); flashBanner(reserveLive > 0 ? 'Reserve band ' + Math.round(reserveLive * 100) + '%' : 'Reserve band off'); return;{{end}}
+      {{if .PresenterReserve}}case 'R': e.preventDefault(); reserveDebug = !reserveDebug; render(); showReserve('frame ' + (reserveDebug ? 'on' : 'off')); return;
+      case '}': case '.': e.preventDefault(); reserveLive = Math.min(1, Math.round((reserveLive + 0.1) * 10) / 10); render(); showReserve('band ' + Math.round(reserveLive * 100) + '%'); return;
+      case '{': case ',': e.preventDefault(); reserveLive = Math.max(0, Math.round((reserveLive - 0.1) * 10) / 10); render(); showReserve(reserveLive > 0 ? 'band ' + Math.round(reserveLive * 100) + '%' : 'band off'); return;{{end}}
       case '[': e.preventDefault(); cycleVariant(-1); return;
       case ']': e.preventDefault(); cycleVariant(1); return;
       case 'n': e.preventDefault(); next(); return;
