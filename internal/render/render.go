@@ -1544,7 +1544,12 @@ html, body {
   overflow: auto;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  /* "safe center" centers content normally, but falls back to flex-start when
+   * the content is TALLER than the box — so an overflowing slide (e.g. a tall
+   * one with the reserve band dialed up) pins its top inside the content box
+   * instead of centering the overflow and clipping the top off-screen.
+   * Locked in by TestReserveBandKeepsContentInBox. */
+  justify-content: safe center;
 }
 
 /* Base typography is wrapped in :where() so theme CSS with bare element
@@ -3593,7 +3598,7 @@ html, body {
   padding: var(--slide-padding);
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  justify-content: safe center;
   page-break-after: always;
   break-after: page;
   position: relative;
