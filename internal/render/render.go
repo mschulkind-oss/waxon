@@ -1314,18 +1314,26 @@ const componentCSS = `/* ---------- Color palette utility classes ----------
  * (0,2,0) wins as intended. */
 
 /* (1) Live L-band: padding scales with --reserve-live (set by the . / , keys).
- * At 0 the calc adds nothing; at 1 it adds the full reserve dimensions, so the
- * content box exactly clears the head box. Content stays vertically centered
- * (no flex-start flip), so it rises SMOOTHLY as the bottom padding grows —
- * avoiding a discrete center→top jump on the first increment.
+ * The .reserve-live class is only present when band > 0, so these rules only
+ * apply while actively squeezing. At band N the calc adds N× the full reserve
+ * dimensions to right + bottom padding, shrinking the content box up-and-left
+ * out of the bottom-right camera.
  *
- * EXCEPTION: a width-capped ".narrow" slide is already a column narrower than
- * the slide, so padding can't move it. There the band instead slides the whole
- * column toward the TOP-LEFT via scaled auto-ish margins (see .narrow rules
- * below), keeping it centered at band 0 and tucking it up-left as you dial. */
+ * TOP-ALIGN while squeezing: the bottom padding shrinks the usable height, so
+ * tall content (e.g. a big image) can exceed it. With justify-content:center
+ * an overflowing column clips at BOTH ends — including the top, which you can't
+ * scroll back to in a deck (the bug that hid the title). Top-aligning pins the
+ * top in view; the bottom (nearest the camera) is what gives. We also cap media
+ * height to the reduced area so images shrink to fit instead of overflowing. */
 .slide.reserve-live:not(.narrow) {
   padding-right: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-w, 22%));
   padding-bottom: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-h, 30%));
+  justify-content: flex-start;
+}
+/* Keep tall media inside the squeezed area instead of overflowing the top. */
+.slide.reserve-live img,
+.slide.reserve-live .waxon-image img {
+  max-height: calc((1 - var(--reserve-live, 0) * 0.5) * (100vh - 16vmin));
 }
 
 /* (1b) Width-capped ".narrow" slides: content is held to --narrow-w (default
@@ -1341,6 +1349,8 @@ const componentCSS = `/* ---------- Color palette utility classes ----------
   padding-right: calc(var(--slide-padding) + var(--narrow-free) * (0.5 + 0.5 * var(--reserve-live, 0)));
   padding-bottom: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-h, 30%));
 }
+/* Top-align a narrow column only while squeezing, for the same top-clip reason. */
+.slide.narrow.reserve-live { justify-content: flex-start; }
 
 /* (2) Debug overlay (toggled by .reserve-debug on the slide, serve 'R'):
  *   ::before = the CONTENT box edge — where content actually stops, tracking
