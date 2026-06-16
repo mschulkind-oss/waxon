@@ -2099,27 +2099,6 @@ html, body {
 }
 .ws-status.show { display: block; }
 
-/* Reserve readout — a non-reflowing pill, pinned bottom-left, that reports the
- * live band % / frame state. position:fixed so toggling it NEVER shifts the
- * slide (unlike the in-flow .banner). Fades out shortly after the last change. */
-.reserve-status {
-  position: fixed;
-  left: 12px;
-  top: 12px;
-  background: color-mix(in srgb, #000 72%, transparent);
-  color: var(--accent);
-  font-size: var(--chrome-font-sm);
-  font-family: var(--font-mono);
-  padding: 5px 11px;
-  border-radius: 5px;
-  border: 1px solid color-mix(in srgb, var(--accent) 55%, transparent);
-  z-index: 200;
-  opacity: 0;
-  transition: opacity 0.18s ease;
-  pointer-events: none;
-}
-.reserve-status.show { opacity: 1; }
-
 {{if .TerminalEffects}}
 /* Terminal scanline effect — scoped to the deck area so it never overlays
    chrome (banner, FAB, panels, help overlay). */
@@ -2171,8 +2150,7 @@ html, body {
   </div>
   <div class="progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Slide progress"></div>
   <div class="ws-status" id="ws-status">disconnected — reconnecting…</div>
-{{if .PresenterReserve}}  <div class="reserve-status" id="reserve-status" aria-hidden="true"></div>
-{{end}}
+
   <div class="fab" role="toolbar" aria-label="Slide controls">
     <div class="group">
       <button type="button" data-action="variants" aria-label="Toggle variants panel (v)" title="Variants — v"><kbd>v</kbd> variants</button>
@@ -2192,7 +2170,14 @@ html, body {
       <button type="button" data-action="compare" aria-pressed="false" aria-label="Toggle compare mode (x)" title="Compare main vs variant — x"><kbd>x</kbd> compare</button>
       <button type="button" data-action="help" aria-label="Show keyboard shortcuts (?)" title="Keyboard shortcuts — ?"><kbd>?</kbd></button>
     </div>
-  </div>
+{{if .PresenterReserve}}    <div class="divider"></div>
+    <div class="group">
+      <button type="button" data-action="reserve-frame" aria-pressed="false" aria-label="Toggle reserve frame (Shift+R)" title="Show slide frame + head box — Shift+R"><kbd>R</kbd> frame</button>
+      <button type="button" data-action="reserve-down" aria-label="Shrink reserve band (,)" title="Shrink reserve band — ,">−</button>
+      <button type="button" data-action="reserve-level" id="reserve-level" aria-label="Reserve band level" title="Reserve band — . / , to adjust">band 0%</button>
+      <button type="button" data-action="reserve-up" aria-label="Grow reserve band (.)" title="Grow reserve band — .">+</button>
+    </div>
+{{end}}  </div>
 </div>
 
 <aside class="panel" id="panel-variants" data-panel="variants" role="dialog" aria-modal="false" aria-labelledby="variants-title" hidden>
@@ -2362,20 +2347,20 @@ html, body {
   var compareLabel = $('compare-label');
   var mainLabel = $('main-label');
   var wsStatus = $('ws-status');
-  var reserveStatus = $('reserve-status');
-  var reserveStatusTimer = null;
-  // Non-reflowing readout for the presenter-reserve controls. Unlike
-  // flashBanner (which shows an in-flow bar and shoves the slide down), this
-  // updates a position:fixed pill, so dialing the band never reflows content.
-  function showReserve(msg) {
-    if (!reserveStatus) return;
-    reserveStatus.textContent = msg;
-    reserveStatus.classList.add('show');
-    if (reserveStatusTimer) clearTimeout(reserveStatusTimer);
-    reserveStatusTimer = setTimeout(function() {
-      reserveStatus.classList.remove('show');
-    }, 1400);
+  {{if .PresenterReserve}}// Presenter-reserve controls. The band % lives in the FAB toolbar (the
+  // 'reserve-level' button), updated in place — NO top banner, NO reflow.
+  function updateReserveReadout() {
+    var el = document.getElementById('reserve-level');
+    if (el) el.textContent = 'band ' + Math.round(reserveLive * 100) + '%';
+    var fr = document.querySelector('[data-action="reserve-frame"]');
+    if (fr) fr.setAttribute('aria-pressed', reserveDebug ? 'true' : 'false');
   }
+  function toggleReserveFrame() { reserveDebug = !reserveDebug; render(); updateReserveReadout(); }
+  function reserveBand(delta) {
+    reserveLive = Math.min(1, Math.max(0, Math.round((reserveLive + delta) * 10) / 10));
+    render();
+    updateReserveReadout();
+  }{{end}}
   var commentForm = $('comment-form');
   var commentSubmit = $('comment-submit');
   var commentStatus = $('comment-status');
@@ -3140,6 +3125,10 @@ html, body {
       else if (action === 'zoom-in') zoomIn();
       else if (action === 'zoom-out') zoomOut();
       else if (action === 'zoom-reset') zoomReset();
+      else if (action === 'reserve-frame') toggleReserveFrame();
+      else if (action === 'reserve-up') reserveBand(0.1);
+      else if (action === 'reserve-down') reserveBand(-0.1);
+      else if (action === 'reserve-level') return;
       else togglePanel(action);
     });
   });
@@ -3215,9 +3204,9 @@ html, body {
       case 'N': e.preventDefault(); togglePanel('notes'); return;
       case 'H': e.preventDefault(); toggleFab(); return;
       case 'x': e.preventDefault(); compareMode = !compareMode; render(); return;
-      {{if .PresenterReserve}}case 'R': e.preventDefault(); reserveDebug = !reserveDebug; render(); showReserve('frame ' + (reserveDebug ? 'on' : 'off')); return;
-      case '}': case '.': e.preventDefault(); reserveLive = Math.min(1, Math.round((reserveLive + 0.1) * 10) / 10); render(); showReserve('band ' + Math.round(reserveLive * 100) + '%'); return;
-      case '{': case ',': e.preventDefault(); reserveLive = Math.max(0, Math.round((reserveLive - 0.1) * 10) / 10); render(); showReserve(reserveLive > 0 ? 'band ' + Math.round(reserveLive * 100) + '%' : 'band off'); return;{{end}}
+      {{if .PresenterReserve}}case 'R': e.preventDefault(); toggleReserveFrame(); return;
+      case '}': case '.': e.preventDefault(); reserveBand(0.1); return;
+      case '{': case ',': e.preventDefault(); reserveBand(-0.1); return;{{end}}
       case '[': e.preventDefault(); cycleVariant(-1); return;
       case ']': e.preventDefault(); cycleVariant(1); return;
       case 'n': e.preventDefault(); next(); return;
