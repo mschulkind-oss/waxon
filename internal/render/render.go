@@ -1313,44 +1313,38 @@ const componentCSS = `/* ---------- Color palette utility classes ----------
  * where they must beat the base ".slide" rule (0,1,0); plain ".slide.reserve-*"
  * (0,2,0) wins as intended. */
 
-/* (1) Live L-band: padding scales with --reserve-live (set by the . / , keys).
- * The .reserve-live class is only present when band > 0, so these rules only
- * apply while actively squeezing. At band N the calc adds N× the full reserve
- * dimensions to right + bottom padding, shrinking the content box up-and-left
- * out of the bottom-right camera.
+/* (1) Live band — VERTICAL ONLY. The .reserve-live class is present only when
+ * band > 0. Dialing the band adds bottom padding (N× the reserve height) and
+ * top-aligns content, so content rides UP out of the bottom-right camera. It
+ * deliberately does NOT touch horizontal padding: a width-capped, centered box
+ * (see .narrow / the transcript cap) keeps its fixed window-coords width and
+ * stays centered no matter how far you dial — only its vertical position moves.
  *
- * TOP-ALIGN while squeezing: the bottom padding shrinks the usable height, so
- * tall content (e.g. a big image) can exceed it. With justify-content:center
- * an overflowing column clips at BOTH ends — including the top, which you can't
- * scroll back to in a deck (the bug that hid the title). Top-aligning pins the
- * top in view; the bottom (nearest the camera) is what gives. We also cap media
- * height to the reduced area so images shrink to fit instead of overflowing. */
-.slide.reserve-live:not(.narrow) {
-  padding-right: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-w, 22%));
+ * Top-align is required because the shrunk height can be less than tall content
+ * (e.g. a big image); centering an overflow clips the TOP off-screen (the bug
+ * that hid the title). Pin the top; give from the bottom (toward the camera).
+ * Media height is also capped to the reduced area so images shrink to fit. */
+.slide.reserve-live {
   padding-bottom: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-h, 30%));
   justify-content: flex-start;
 }
-/* Keep tall media inside the squeezed area instead of overflowing the top. */
 .slide.reserve-live img,
 .slide.reserve-live .waxon-image img {
   max-height: calc((1 - var(--reserve-live, 0) * 0.5) * (100vh - 16vmin));
 }
 
-/* (1b) Width-capped ".narrow" slides: content is held to --narrow-w (default
- * 62%). The leftover horizontal space is --narrow-free. At band 0 that free
- * space is split evenly (column centered); as --reserve-live → 1 it shifts
- * entirely to the right (column tucks LEFT). Vertically, the bottom padding
- * grows with the band so the column also rides UP. Pure padding → smooth,
- * flex/grid-safe, no DOM wrapper needed. */
-.slide.narrow {
-  --narrow-w: 62%;
-  --narrow-free: calc(100% - var(--narrow-w));
-  padding-left: calc(var(--slide-padding) + var(--narrow-free) * 0.5 * (1 - var(--reserve-live, 0)));
-  padding-right: calc(var(--slide-padding) + var(--narrow-free) * (0.5 + 0.5 * var(--reserve-live, 0)));
-  padding-bottom: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-h, 30%));
+/* (1b) Width-capped ".narrow" slides: each content block is held to --narrow-w
+ * (default 60vw — a fixed WINDOW-coords measure, so the box never gets too wide
+ * and its width is invariant as the band is dialed) and CENTERED in the slide.
+ * Independent of the band — narrow is purely the width cap; the band only moves
+ * content up. align-items:center centers the capped blocks horizontally. */
+.slide.narrow { align-items: center; }
+.slide.narrow > * {
+  max-width: var(--narrow-w, 60vw);
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
 }
-/* Top-align a narrow column only while squeezing, for the same top-clip reason. */
-.slide.narrow.reserve-live { justify-content: flex-start; }
 
 /* (2) Debug overlay (toggled by .reserve-debug on the slide, serve 'R'):
  *   ::before = the CONTENT box edge — where content actually stops, tracking
