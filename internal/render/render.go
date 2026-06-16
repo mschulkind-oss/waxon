@@ -1317,9 +1317,28 @@ const componentCSS = `/* ---------- Color palette utility classes ----------
  * At 0 the calc adds nothing; at 1 it adds the full reserve dimensions, so the
  * content box exactly clears the head box. Content stays vertically centered
  * (no flex-start flip), so it rises SMOOTHLY as the bottom padding grows —
- * avoiding a discrete center→top jump on the first increment. */
-.slide.reserve-live {
+ * avoiding a discrete center→top jump on the first increment.
+ *
+ * EXCEPTION: a width-capped ".narrow" slide is already a column narrower than
+ * the slide, so padding can't move it. There the band instead slides the whole
+ * column toward the TOP-LEFT via scaled auto-ish margins (see .narrow rules
+ * below), keeping it centered at band 0 and tucking it up-left as you dial. */
+.slide.reserve-live:not(.narrow) {
   padding-right: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-w, 22%));
+  padding-bottom: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-h, 30%));
+}
+
+/* (1b) Width-capped ".narrow" slides: content is held to --narrow-w (default
+ * 62%). The leftover horizontal space is --narrow-free. At band 0 that free
+ * space is split evenly (column centered); as --reserve-live → 1 it shifts
+ * entirely to the right (column tucks LEFT). Vertically, the bottom padding
+ * grows with the band so the column also rides UP. Pure padding → smooth,
+ * flex/grid-safe, no DOM wrapper needed. */
+.slide.narrow {
+  --narrow-w: 62%;
+  --narrow-free: calc(100% - var(--narrow-w));
+  padding-left: calc(var(--slide-padding) + var(--narrow-free) * 0.5 * (1 - var(--reserve-live, 0)));
+  padding-right: calc(var(--slide-padding) + var(--narrow-free) * (0.5 + 0.5 * var(--reserve-live, 0)));
   padding-bottom: calc(var(--slide-padding) + var(--reserve-live, 0) * var(--presenter-reserve-h, 30%));
 }
 
