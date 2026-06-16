@@ -75,6 +75,71 @@ func TestRenderHTMLSlideContent(t *testing.T) {
 	}
 }
 
+func TestRenderHTMLPresenterReserve(t *testing.T) {
+	deck := testDeck()
+	deck.Meta.PresenterReserve = "bottom-right"
+	html, err := RenderHTML(deck, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// The class is applied to the live slide element...
+	if !strings.Contains(html, `class="slide presenter-reserve"`) {
+		t.Error("missing presenter-reserve class on render-main")
+	}
+	// ...and re-added by render() JS, which wipes className on every nav.
+	if !strings.Contains(html, "classList.add('presenter-reserve')") {
+		t.Error("render() JS does not re-apply presenter-reserve after className wipe")
+	}
+	// CSS var fallback is present so themes need not define it.
+	if !strings.Contains(html, "--presenter-reserve-w") {
+		t.Error("missing presenter-reserve CSS variable fallback")
+	}
+	// The padding rule that actually clears the corner.
+	if !strings.Contains(html, "padding-right: calc(var(--slide-padding) + var(--presenter-reserve-w") {
+		t.Error("missing reserve padding rule")
+	}
+}
+
+func TestRenderHTMLPresenterReserveOff(t *testing.T) {
+	deck := testDeck() // PresenterReserve == "" (off)
+	html, err := RenderHTML(deck, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(html, `class="slide presenter-reserve"`) {
+		t.Error("presenter-reserve class leaked onto slide when option off")
+	}
+	if strings.Contains(html, "classList.add('presenter-reserve')") {
+		t.Error("presenter-reserve JS re-add leaked when option off")
+	}
+}
+
+func TestRenderHTMLPresenterReserveUnknownValue(t *testing.T) {
+	deck := testDeck()
+	deck.Meta.PresenterReserve = "top-left" // not shipped — should be treated as off
+	html, err := RenderHTML(deck, Options{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if strings.Contains(html, `class="slide presenter-reserve"`) {
+		t.Error("unknown presenter-reserve value should not activate the reserve")
+	}
+}
+
+func TestRenderPrintPresenterReserve(t *testing.T) {
+	deck := testDeck()
+	deck.Meta.PresenterReserve = "bottom-right"
+	html, err := RenderHTML(deck, Options{Print: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	// Every slide div in the print markup carries the class (one per slide).
+	if got := strings.Count(html, "slide presenter-reserve"); got < len(deck.Slides) {
+		t.Errorf("print slides missing presenter-reserve class: got %d, want >= %d", got, len(deck.Slides))
+	}
+}
+
 func TestRenderHTMLThemeOverride(t *testing.T) {
 	deck := testDeck()
 	html, err := RenderHTML(deck, Options{ThemeOverride: "terminal"})

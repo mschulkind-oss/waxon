@@ -141,23 +141,24 @@ func RenderHTML(deck *format.Deck, opts Options) (string, error) {
 	}
 
 	data := templateData{
-		Title:           deck.Meta.Title,
-		Author:          deck.Meta.Author,
-		Theme:           theme,
-		Aspect:          deck.Meta.Aspect,
-		Footer:          deck.Meta.Footer,
-		FooterLeft:      deck.Meta.FooterLeft,
-		FooterRight:     deck.Meta.FooterRight,
-		Transition:      deck.Meta.Transition,
-		TerminalVariant: deck.Meta.TerminalVariant,
-		TerminalEffects: deck.Meta.TerminalEffects,
-		ThemeCSSInline:  themeCSSInline,
-		Fonts:           deck.Meta.Fonts,
-		DeckJSON:        template.JS(jsDeckJSON),
-		DecksJSON:       template.JS(decksJSON),
-		StateJSON:       template.JS(stateJSON),
-		ThemesJSON:      template.JS(themesJSON),
-		TotalSlides:     len(deck.Slides),
+		Title:            deck.Meta.Title,
+		Author:           deck.Meta.Author,
+		Theme:            theme,
+		Aspect:           deck.Meta.Aspect,
+		PresenterReserve: deck.Meta.PresenterReserve == "bottom-right",
+		Footer:           deck.Meta.Footer,
+		FooterLeft:       deck.Meta.FooterLeft,
+		FooterRight:      deck.Meta.FooterRight,
+		Transition:       deck.Meta.Transition,
+		TerminalVariant:  deck.Meta.TerminalVariant,
+		TerminalEffects:  deck.Meta.TerminalEffects,
+		ThemeCSSInline:   themeCSSInline,
+		Fonts:            deck.Meta.Fonts,
+		DeckJSON:         template.JS(jsDeckJSON),
+		DecksJSON:        template.JS(decksJSON),
+		StateJSON:        template.JS(stateJSON),
+		ThemesJSON:       template.JS(themesJSON),
+		TotalSlides:      len(deck.Slides),
 	}
 
 	var buf bytes.Buffer
@@ -344,16 +345,17 @@ func sanitizeCSSValue(s string) string {
 }
 
 type templateData struct {
-	Title           string
-	Author          string
-	Theme           string
-	Aspect          string
-	Footer          string
-	FooterLeft      string
-	FooterRight     string
-	Transition      string
-	TerminalVariant string
-	TerminalEffects bool
+	Title            string
+	Author           string
+	Theme            string
+	Aspect           string
+	PresenterReserve bool
+	Footer           string
+	FooterLeft       string
+	FooterRight      string
+	Transition       string
+	TerminalVariant  string
+	TerminalEffects  bool
 	// ThemeCSSInline, when non-empty, overrides the built-in theme lookup
 	// with raw CSS loaded from disk. Used by `theme: ./foo.css` paths.
 	ThemeCSSInline template.CSS
@@ -543,29 +545,31 @@ func renderStandalone(deck *format.Deck, opts Options) (string, error) {
 	}
 
 	data := struct {
-		Title           string
-		Theme           string
-		Transition      string
-		TerminalVariant string
-		TerminalEffects bool
-		Footer          string
-		FooterLeft      string
-		FooterRight     string
-		ThemeCSSInline  template.CSS
-		Fonts           []string
-		Slides          []printSlide
+		Title            string
+		Theme            string
+		Transition       string
+		TerminalVariant  string
+		TerminalEffects  bool
+		PresenterReserve bool
+		Footer           string
+		FooterLeft       string
+		FooterRight      string
+		ThemeCSSInline   template.CSS
+		Fonts            []string
+		Slides           []printSlide
 	}{
-		Title:           deck.Meta.Title,
-		Theme:           theme,
-		Transition:      deck.Meta.Transition,
-		TerminalVariant: deck.Meta.TerminalVariant,
-		TerminalEffects: deck.Meta.TerminalEffects,
-		Footer:          deck.Meta.Footer,
-		FooterLeft:      deck.Meta.FooterLeft,
-		FooterRight:     deck.Meta.FooterRight,
-		ThemeCSSInline:  themeCSSInline,
-		Fonts:           deck.Meta.Fonts,
-		Slides:          slides,
+		Title:            deck.Meta.Title,
+		Theme:            theme,
+		Transition:       deck.Meta.Transition,
+		TerminalVariant:  deck.Meta.TerminalVariant,
+		TerminalEffects:  deck.Meta.TerminalEffects,
+		PresenterReserve: deck.Meta.PresenterReserve == "bottom-right",
+		Footer:           deck.Meta.Footer,
+		FooterLeft:       deck.Meta.FooterLeft,
+		FooterRight:      deck.Meta.FooterRight,
+		ThemeCSSInline:   themeCSSInline,
+		Fonts:            deck.Meta.Fonts,
+		Slides:           slides,
 	}
 
 	var buf bytes.Buffer
@@ -1284,7 +1288,49 @@ const componentCSS = `/* ---------- Color palette utility classes ----------
   font-family: var(--font-mono);
 }
 :where(.slide) .waxon-timeline-horizontal .waxon-timeline-marker.waxon-timeline-icon { top: -0.7em; }
-:where(.slide) .waxon-timeline-vertical   .waxon-timeline-marker.waxon-timeline-icon { left: -0.5em; top: -0.1em; }`
+:where(.slide) .waxon-timeline-vertical   .waxon-timeline-marker.waxon-timeline-icon { left: -0.5em; top: -0.1em; }
+
+/* ---------- Presenter reserve zone ----------
+ * When a deck sets 'presenter-reserve: bottom-right', every slide gets the
+ * .presenter-reserve class. We clear a bottom-right rectangle for a
+ * talking-head camera overlay by growing the slide's right + bottom padding
+ * (an inverted-L band: full-width bottom strip + full-height right strip).
+ * Content lays out in the remaining region — this is layout-agnostic, so it
+ * works for prose, :::grid, :::compare, and constrained :::image alike.
+ * CSS cannot make flex/grid children reflow around only a corner, so the
+ * L-band is the honest, predictable choice. Dimensions are theme-tunable via
+ * --presenter-reserve-w / --presenter-reserve-h. Per-slide escape hatch:
+ * <!-- slide: no-reserve -->. Note: full-bleed background images (bg-image)
+ * paint the whole element and are NOT cleared — use a foreground :::image or
+ * no-reserve for those slides.
+ *
+ * These rules intentionally do NOT use :where() — the base ".slide" rule sets
+ * padding/justify-content with specificity (0,1,0), and :where() contributes
+ * zero specificity, so a :where(.slide.presenter-reserve) rule would lose to
+ * ".slide". Plain ".slide.presenter-reserve" (0,2,0) wins as intended. */
+.slide.presenter-reserve {
+  padding-right: calc(var(--slide-padding) + var(--presenter-reserve-w, 22%));
+  padding-bottom: calc(var(--slide-padding) + var(--presenter-reserve-h, 30%));
+}
+/* With a reserve active, default to top alignment so content fills the
+ * cleared upper-left region instead of centering in the shrunken box. An
+ * explicit data-valign still wins: this rule only matches when data-valign is
+ * absent (:not), so the base .slide[data-valign=...] rules are never in conflict. */
+.slide.presenter-reserve:not([data-valign]) {
+  justify-content: flex-start;
+}
+/* Per-slide opt-out: <!-- slide: no-reserve --> restores normal padding. */
+.slide.presenter-reserve.no-reserve {
+  padding-right: var(--slide-padding);
+  padding-bottom: var(--slide-padding);
+}
+/* Keep the footer clear of the camera box. The footer is a sibling of .slide
+ * in the interactive pane and a child in print, hence both selectors. */
+.slide.presenter-reserve ~ .footer,
+.slide.presenter-reserve .footer {
+  right: calc(var(--slide-padding) + var(--presenter-reserve-w, 22%));
+  bottom: calc(var(--presenter-reserve-h, 30%) - 2vmin);
+}`
 
 const pageTemplate = `<!DOCTYPE html>
 <html lang="en" data-theme="{{.Theme}}"{{if .TerminalVariant}} data-terminal-variant="{{.TerminalVariant}}"{{end}}>
@@ -1312,6 +1358,11 @@ const pageTemplate = `<!DOCTYPE html>
   --font-heading: system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   --slide-padding: 5vmin;
+  /* Presenter reserve zone — size of the cleared bottom-right rectangle for a
+   * talking-head camera overlay. Themes may override these. Only takes effect
+   * when the deck sets presenter-reserve: bottom-right. */
+  --presenter-reserve-w: 22%;
+  --presenter-reserve-h: 30%;
 
   /* Chrome variables — fixed-px, theme-aware */
   --chrome-fg: var(--slide-fg);
@@ -2042,7 +2093,7 @@ html, body {
 <div class="deck-area{{if .TerminalEffects}} scanline{{end}}" id="deck-area">
   <div class="pane" id="pane-main">
     <div class="pane-label" id="main-label" style="display:none;">main</div>
-    <div class="slide" id="render-main"></div>
+    <div class="slide{{if .PresenterReserve}} presenter-reserve{{end}}" id="render-main"></div>
 {{if or .Footer .FooterLeft .FooterRight}}    <div class="footer" id="footer-main">
       <div class="footer-left" data-footer-tpl="{{.FooterLeft}}">{{.FooterLeft}}</div>
       <div class="footer-center" data-footer-tpl="{{.Footer}}">{{.Footer}}</div>
@@ -2052,7 +2103,7 @@ html, body {
   </div>
   <div class="pane compare-pane" id="pane-compare" style="display:none;">
     <div class="pane-label" id="compare-label">compare</div>
-    <div class="slide" id="render-compare"></div>
+    <div class="slide{{if .PresenterReserve}} presenter-reserve{{end}}" id="render-compare"></div>
   </div>
   <div class="progress" id="progress" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-label="Slide progress"></div>
   <div class="ws-status" id="ws-status">disconnected — reconnecting…</div>
@@ -2308,6 +2359,7 @@ html, body {
     renderMain.className = '';
     void renderMain.offsetWidth;
     renderMain.classList.add('slide');
+    {{if .PresenterReserve}}renderMain.classList.add('presenter-reserve');{{end}}
     if (view.slide && view.slide.class) {
       view.slide.class.split(/\s+/).forEach(function(c) {
         if (c) renderMain.classList.add(c);
@@ -3405,6 +3457,8 @@ const printTemplate = `<!DOCTYPE html>
   --font-heading: system-ui, -apple-system, sans-serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', monospace;
   --slide-padding: 5vmin;
+  --presenter-reserve-w: 22%;
+  --presenter-reserve-h: 30%;
 }
 
 html, body {
@@ -3527,7 +3581,7 @@ html, body {
 <body>
 <div class="deck"{{if .Transition}} data-transition="{{.Transition}}"{{end}}>
 {{range $i, $s := .Slides}}
-<div class="slide{{if $s.Class}} {{$s.Class}}{{end}}" data-index="{{$s.Index}}"{{if $s.ID}} id="{{$s.ID}}"{{end}}{{if $s.Valign}} data-valign="{{$s.Valign}}"{{end}}{{if $s.Style}} style="{{$s.Style}}"{{end}}>
+<div class="slide{{if $.PresenterReserve}} presenter-reserve{{end}}{{if $s.Class}} {{$s.Class}}{{end}}" data-index="{{$s.Index}}"{{if $s.ID}} id="{{$s.ID}}"{{end}}{{if $s.Valign}} data-valign="{{$s.Valign}}"{{end}}{{if $s.Style}} style="{{$s.Style}}"{{end}}>
 {{$s.HTML}}
 {{if or $.Footer $.FooterLeft $.FooterRight}}<div class="footer">
 <div class="footer-left">{{pageFooter $.FooterLeft (inc $i) (len $.Slides)}}</div>

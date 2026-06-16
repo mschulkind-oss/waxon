@@ -10,6 +10,7 @@ title: "Test Deck"
 author: "Alice"
 theme: terminal
 aspect: "4:3"
+presenter-reserve: bottom-right
 footer: "ACME Corp"
 terminal-variant: nord
 terminal-effects: true
@@ -33,6 +34,9 @@ terminal-effects: true
 	}
 	if deck.Meta.Aspect != "4:3" {
 		t.Errorf("aspect = %q, want %q", deck.Meta.Aspect, "4:3")
+	}
+	if deck.Meta.PresenterReserve != "bottom-right" {
+		t.Errorf("presenter-reserve = %q, want %q", deck.Meta.PresenterReserve, "bottom-right")
 	}
 	if deck.Meta.Footer != "ACME Corp" {
 		t.Errorf("footer = %q, want %q", deck.Meta.Footer, "ACME Corp")
