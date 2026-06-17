@@ -1467,42 +1467,6 @@ html, body {
   overflow: hidden;
 }
 
-/* ---------- Banner ---------- */
-.banner {
-  display: none;
-  align-items: center;
-  gap: 0.6em;
-  padding: 8px 14px;
-  background: color-mix(in srgb, var(--accent) 14%, var(--chrome-bg));
-  color: var(--chrome-fg);
-  font-size: var(--chrome-font);
-  border-bottom: 1px solid color-mix(in srgb, var(--accent) 45%, transparent);
-  z-index: 100;
-}
-.banner.active { display: flex; }
-.banner .label { font-weight: 600; opacity: 0.85; }
-.banner .pill {
-  background: color-mix(in srgb, var(--accent) 30%, transparent);
-  border: 1px solid color-mix(in srgb, var(--accent) 50%, transparent);
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: var(--chrome-font-sm);
-  font-family: var(--font-mono);
-}
-.banner .spacer { flex: 1; }
-.banner button {
-  background: transparent;
-  border: 1px solid var(--chrome-border);
-  color: inherit;
-  padding: 3px 10px;
-  border-radius: 4px;
-  font: inherit;
-  font-size: var(--chrome-font-sm);
-  cursor: pointer;
-}
-.banner button:hover { background: color-mix(in srgb, var(--chrome-fg) 10%, transparent); }
-.banner button + button { margin-left: 4px; }
-
 /* ---------- Deck area ---------- */
 .deck-area { flex: 1; position: relative; min-height: 0; display: flex; }
 .deck-area.compare { gap: 8px; background: color-mix(in srgb, var(--slide-fg) 20%, transparent); }
@@ -2155,14 +2119,6 @@ html, body {
 <body{{if .Transition}} data-transition="{{.Transition}}"{{end}}>
 <div class="app" id="app" tabindex="-1">
 
-<div class="banner" id="banner" role="status" aria-live="polite">
-  <span class="label" id="banner-label">Preview</span>
-  <span id="banner-pills"></span>
-  <span class="spacer"></span>
-  <button id="banner-hide" type="button" aria-label="Hide this banner">Hide</button>
-  <button id="banner-reset" type="button" aria-label="Reset to default view">Reset</button>
-</div>
-
 <div class="deck-area{{if .TerminalEffects}} scanline{{end}}" id="deck-area">
   <div class="pane" id="pane-main">
     <div class="pane-label" id="main-label" style="display:none;">main</div>
@@ -2203,9 +2159,9 @@ html, body {
 {{if .PresenterReserve}}    <div class="divider"></div>
     <div class="group">
       <button type="button" data-action="reserve-frame" aria-pressed="false" aria-label="Toggle reserve frame (Shift+R)" title="Show slide frame + head box — Shift+R"><kbd>R</kbd> frame</button>
-      <button type="button" data-action="reserve-down" aria-label="Shrink reserve band (,)" title="Shrink reserve band — ,">−</button>
-      <button type="button" data-action="reserve-level" id="reserve-level" aria-label="Reserve band level" title="Reserve band — . / , to adjust">band 0%</button>
-      <button type="button" data-action="reserve-up" aria-label="Grow reserve band (.)" title="Grow reserve band — .">+</button>
+      <button type="button" data-action="reserve-down" aria-label="Scale content down / grow gutter (,)" title="Smaller fit, bigger gutter — ,">−</button>
+      <button type="button" data-action="reserve-level" id="reserve-level" aria-label="Content fit relative to slide" title="Slide:window fit — . bigger / , smaller">fit 100%</button>
+      <button type="button" data-action="reserve-up" aria-label="Scale content up / shrink gutter (.)" title="Bigger fit, smaller gutter — .">+</button>
     </div>
 {{end}}  </div>
 </div>
@@ -2305,7 +2261,7 @@ html, body {
     {{if .PresenterReserve}}<h3>Presenter reserve</h3>
     <table>
       <tr><td><kbd>Shift</kbd>+<kbd>R</kbd></td><td>Toggle the slide frame + camera-box overlay</td></tr>
-      <tr><td><kbd>.</kbd> / <kbd>,</kbd></td><td>Grow / shrink the bottom-right reserve band (clears space for your head)</td></tr>
+      <tr><td><kbd>.</kbd> / <kbd>,</kbd></td><td>Scale content fit up / down — <kbd>,</kbd> shrinks content toward the top-left, growing the bottom-right gutter for your head</td></tr>
     </table>{{end}}
     <div class="hint">
       Click a comment in the Comments panel to jump to that slide. The
@@ -2350,7 +2306,6 @@ html, body {
   var pauseStep = {};
   var openPanel = null;
   var lastG = 0;
-  var bannerHidden = false;
   // Set when the user is composing a comment, freezing the target dropdown.
   var commentComposing = false;
   // Tracks the slide+variant the comment was started on.
@@ -2367,27 +2322,32 @@ html, body {
   var deckArea = $('deck-area');
   var progress = $('progress');
   var counter = $('counter-main');
-  var banner = $('banner');
-  var bannerPills = $('banner-pills');
-  var bannerLabel = $('banner-label');
-  var bannerReset = $('banner-reset');
-  var bannerHide = $('banner-hide');
   var helpOverlay = $('help-overlay');
   var helpCard = helpOverlay.querySelector('.help-card');
   var compareLabel = $('compare-label');
   var mainLabel = $('main-label');
   var wsStatus = $('ws-status');
-  {{if .PresenterReserve}}// Presenter-reserve controls. The band % lives in the FAB toolbar (the
-  // 'reserve-level' button), updated in place — NO top banner, NO reflow.
+  {{if .PresenterReserve}}// Presenter-reserve controls. The readout in the FAB toolbar reports the
+  // SLIDE:WINDOW scale — the content region's width as a fraction of the slide
+  // width. At band 0 the content fills the slide → "fit 100%"; growing the
+  // band shrinks the region, so the % goes DOWN (by definition). Updated in
+  // place — NO top banner, NO reflow.
   function updateReserveReadout() {
     var el = document.getElementById('reserve-level');
-    if (el) el.textContent = 'band ' + Math.round(reserveLive * 100) + '%';
+    // fit = the dial parameter, 1 - reserveLive. 100% = content fills the
+    // slide (no reserve); each ',' step scales it down 10% toward the top-left.
+    if (el) el.textContent = 'fit ' + Math.round((1 - reserveLive) * 100) + '%';
     var fr = document.querySelector('[data-action="reserve-frame"]');
     if (fr) fr.setAttribute('aria-pressed', reserveDebug ? 'true' : 'false');
   }
   function toggleReserveFrame() { reserveDebug = !reserveDebug; render(); updateReserveReadout(); }
-  function reserveBand(delta) {
-    reserveLive = Math.min(1, Math.max(0, Math.round((reserveLive + delta) * 10) / 10));
+  // The control is parameterized as FIT (scaled-down size relative to window):
+  // '.' raises fit, ',' lowers it. The reserve band is the inverse,
+  // reserveLive = 1 - fit, so lowering fit (',') grows the gutter by definition.
+  function reserveFit(delta) {
+    var fit = 1 - reserveLive;
+    fit = Math.min(1, Math.max(0, Math.round((fit + delta) * 10) / 10));
+    reserveLive = 1 - fit;
     render();
     updateReserveReadout();
   }{{end}}
@@ -2552,7 +2512,6 @@ html, body {
       deckArea.classList.remove('compare');
     }
 
-    updateBanner();
     updateFabActive();
     if (openPanel === 'variants') renderVariantsPanel();
     if (openPanel === 'comments') renderCommentsPanel();
@@ -2566,26 +2525,6 @@ html, body {
     var hash = '#' + hashBase;
     if (activeVariant[current]) hash += '/' + encodeURIComponent(activeVariant[current]);
     if (location.hash !== hash) history.replaceState(null, '', hash);
-  }
-
-  function updateBanner() {
-    var pills = [];
-    // Theme preview is shown as a transient toast on switch (see applyTheme),
-    // not a persistent pill — it confused users and isn't a sticky setting.
-    if (activeVariant[current]) {
-      pills.push('variant: <span class="pill">' + escapeHTML(activeVariant[current]) + '</span>');
-    }
-    if (compareMode) {
-      pills.push('<span class="pill">compare</span>');
-    }
-    if (pills.length === 0 || bannerHidden) {
-      banner.classList.remove('active');
-      bannerPills.innerHTML = '';
-    } else {
-      banner.classList.add('active');
-      bannerLabel.textContent = 'Preview';
-      bannerPills.innerHTML = pills.join(' · ');
-    }
   }
 
   function updateFabActive() {
@@ -2603,27 +2542,6 @@ html, body {
       b.classList.toggle('active', active);
     });
   }
-
-  bannerReset.addEventListener('click', function() {
-    activeVariant = {};
-    compareMode = false;
-    bannerHidden = false;
-    if (state.themeOverridden) {
-      // Theme override is server-side; we can't undo it client-side, but
-      // tell the user clearly.
-      commentStatus.textContent = '';
-      banner.classList.add('active');
-      bannerLabel.textContent = 'Theme override is server-side';
-      bannerPills.innerHTML = 'restart waxon without --theme to clear';
-      return;
-    }
-    render();
-  });
-
-  bannerHide.addEventListener('click', function() {
-    bannerHidden = true;
-    updateBanner();
-  });
 
   function escapeHTML(s) {
     return String(s).replace(/[&<>"']/g, function(c) {
@@ -2664,7 +2582,6 @@ html, body {
   function cycleVariant(dir) {
     var s = getSlide(current);
     if (s.variants.length === 0) {
-      flashBanner('No variants on this slide');
       return;
     }
     var names = [''].concat(s.variants.map(function(v) { return v.name; }));
@@ -2681,16 +2598,6 @@ html, body {
     activeVariant[current] = name || '';
     pauseStep[current] = 0;
     render();
-  }
-
-  function flashBanner(msg) {
-    banner.classList.add('active');
-    bannerLabel.textContent = msg;
-    bannerPills.innerHTML = '';
-    setTimeout(function() {
-      bannerLabel.textContent = 'Preview';
-      updateBanner();
-    }, 1500);
   }
 
   function togglePanel(name) {
@@ -2959,12 +2866,9 @@ html, body {
         state.activeTheme = name;
         state.themeOverridden = (name !== state.deckTheme);
         document.documentElement.setAttribute('data-theme', name);
-        // Theme preview is a transient in-session try-on, NOT a sticky setting:
-        // flash a brief toast instead of pinning a persistent banner, and do
-        // NOT persist it — a reload always returns to the deck's own theme, so
-        // a forgotten preview can't silently override how the deck looks.
-        if (state.themeOverridden) flashBanner('Theme preview: ' + name + ' — reload to restore deck theme');
-        else flashBanner('Deck theme');
+        // Theme preview is a transient in-session try-on, NOT a sticky setting,
+        // and is NOT persisted — a reload always returns to the deck's own
+        // theme, so a forgotten preview can't silently override how it looks.
         if (openPanel === 'themes') renderThemesPanel();
         return;
       }
@@ -3038,9 +2942,9 @@ html, body {
     if (zl) { zl.textContent = pct; zl.setAttribute('aria-label', 'Reset zoom (currently ' + pct + ') — 0'); }
     try { localStorage.setItem('waxon-zoom', String(zoomLevel)); } catch (e) {}
   }
-  function zoomIn()    { zoomLevel = Math.min(3, Math.round((zoomLevel + 0.1) * 100) / 100); applyZoom(); flashBanner('Zoom ' + Math.round(zoomLevel * 100) + '%'); }
-  function zoomOut()   { zoomLevel = Math.max(0.5, Math.round((zoomLevel - 0.1) * 100) / 100); applyZoom(); flashBanner('Zoom ' + Math.round(zoomLevel * 100) + '%'); }
-  function zoomReset() { zoomLevel = 1; applyZoom(); flashBanner('Zoom 100%'); }
+  function zoomIn()    { zoomLevel = Math.min(3, Math.round((zoomLevel + 0.1) * 100) / 100); applyZoom(); }
+  function zoomOut()   { zoomLevel = Math.max(0.5, Math.round((zoomLevel - 0.1) * 100) / 100); applyZoom(); }
+  function zoomReset() { zoomLevel = 1; applyZoom(); }
   applyZoom();
 
   // ---------- Toolbar (FAB) visibility ----------
@@ -3059,7 +2963,6 @@ html, body {
     fabHidden = !fabHidden;
     try { localStorage.setItem('waxon-fab-hidden', fabHidden ? '1' : '0'); } catch (e) {}
     applyFabVisibility();
-    flashBanner(fabHidden ? 'Toolbar hidden — Shift+H to show' : 'Toolbar shown');
   }
   document.addEventListener('fullscreenchange', function() {
     fabAutoHidden = !!document.fullscreenElement;
@@ -3156,8 +3059,8 @@ html, body {
       else if (action === 'zoom-out') zoomOut();
       else if (action === 'zoom-reset') zoomReset();
       else if (action === 'reserve-frame') toggleReserveFrame();
-      else if (action === 'reserve-up') reserveBand(0.1);
-      else if (action === 'reserve-down') reserveBand(-0.1);
+      else if (action === 'reserve-up') reserveFit(0.1);
+      else if (action === 'reserve-down') reserveFit(-0.1);
       else if (action === 'reserve-level') return;
       else togglePanel(action);
     });
@@ -3235,8 +3138,8 @@ html, body {
       case 'H': e.preventDefault(); toggleFab(); return;
       case 'x': e.preventDefault(); compareMode = !compareMode; render(); return;
       {{if .PresenterReserve}}case 'R': e.preventDefault(); toggleReserveFrame(); return;
-      case '}': case '.': e.preventDefault(); reserveBand(0.1); return;
-      case '{': case ',': e.preventDefault(); reserveBand(-0.1); return;{{end}}
+      case '}': case '.': e.preventDefault(); reserveFit(0.1); return;
+      case '{': case ',': e.preventDefault(); reserveFit(-0.1); return;{{end}}
       case '[': e.preventDefault(); cycleVariant(-1); return;
       case ']': e.preventDefault(); cycleVariant(1); return;
       case 'n': e.preventDefault(); next(); return;
@@ -3247,7 +3150,6 @@ html, body {
         e.preventDefault();
         activeVariant = {};
         compareMode = false;
-        bannerHidden = false;
         pauseStep = {};
         zoomReset();
         render();
